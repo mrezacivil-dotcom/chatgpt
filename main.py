@@ -74,5 +74,5 @@ def run():
 # =========================
 # ENTRY POINT (FIXED)
 # =========================
-if name == "main":
+if __name__ == "__main__":
     run()
