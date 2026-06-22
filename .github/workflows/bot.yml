@@ -22,3 +22,7 @@ jobs:
 
       - name: Run bot
         run: python main.py
+      - name: test secrets
+        run: |
+       echo "TOKEN=$TELEGRAM_TOKEN"
+       echo "CHAT_ID=$CHAT_ID"
