@@ -18,11 +18,9 @@ def run():
 
         try:
             print("STEP 1: update_positions")
-
             update_positions(get_price)
 
             print("STEP 2: get_signals")
-
             signals = get_signals()
 
             print("SIGNALS RAW:", signals)
@@ -49,11 +47,9 @@ def run():
                 continue
 
             print("STEP 5: open position")
-
             open_position(best)
 
             print("STEP 6: send telegram")
-
             send_signal(best)
 
             print("📨 SENT TO TELEGRAM")
@@ -65,22 +61,5 @@ def run():
             time.sleep(2)
 
 
-       # =========================
-       # ENTRY POINT
-       # =========================
-       def run():
-    print("🚀 GITHUB SIGNAL BOT STARTED")
-
-    signals = get_signals()
-
-    if signals:
-        best = max(signals, key=lambda x: x["score"])
-        send_signal(best)
-        print("📨 SIGNAL SENT")
-    else:
-        print("📡 NO SIGNAL")
-
-
 if __name__ == "__main__":
     run()
-    
