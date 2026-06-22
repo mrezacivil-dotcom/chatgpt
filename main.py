@@ -1,3 +1,7 @@
+import os
+
+print("TOKEN EXISTS:", bool(os.getenv("TELEGRAM_TOKEN")))
+print("CHAT_ID EXISTS:", bool(os.getenv("CHAT_ID")))
 import time
 
 from signal_engine import get_signals
