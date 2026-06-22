@@ -4,16 +4,12 @@ from signal_engine import get_signals
 from execution_engine import (
     open_position,
     update_positions,
-    get_positions,
     has_position
 )
 from price_engine import get_price
 from telegram_engine import send_signal
 
 
-# =========================
-# MAIN LOOP
-# =========================
 def run():
 
     print("🚀 GITHUB SIGNAL BOT STARTED")
@@ -21,25 +17,23 @@ def run():
     while True:
 
         try:
-            # =========================
-            # UPDATE POSITIONS
-            # =========================
+            print("STEP 1: update_positions")
+
             update_positions(get_price)
 
-            # =========================
-            # GET SIGNALS
-            # =========================
+            print("STEP 2: get_signals")
+
             signals = get_signals()
 
             print("SIGNALS RAW:", signals)
 
-            # اگر سیگنال نبود
             if not signals:
                 print("📡 NO SIGNAL")
                 time.sleep(2)
                 continue
 
-            # بهترین سیگنال
+            print("STEP 3: select best signal")
+
             best = max(signals, key=lambda x: x["score"])
 
             print("🔥 SIGNAL:", best)
@@ -47,18 +41,18 @@ def run():
             symbol = best["symbol"]
             direction = best["direction"]
 
-            # =========================
-            # CHECK POSITION
-            # =========================
+            print("STEP 4: position check")
+
             if has_position(symbol, direction):
                 print("⛔ POSITION EXISTS")
                 time.sleep(2)
                 continue
 
-            # =========================
-            # EXECUTE TRADE
-            # =========================
+            print("STEP 5: open position")
+
             open_position(best)
+
+            print("STEP 6: send telegram")
 
             send_signal(best)
 
@@ -71,8 +65,5 @@ def run():
             time.sleep(2)
 
 
-# =========================
-# ENTRY POINT (FIXED)
-# =========================
-if __name__ == "__main__":
+if name == "main":
     run()
