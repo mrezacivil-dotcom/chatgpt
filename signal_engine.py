@@ -1,38 +1,32 @@
 import time
 import numpy as np
-
 from price_engine import get_klines
 from ai_core import adaptive_score
-
 
 SYMBOLS = [
     "BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT","XRPUSDT",
     "ADAUSDT","DOGEUSDT","AVAXUSDT","DOTUSDT","LINKUSDT"
 ]
 
+# =========================
+# MEMORY
+# =========================
 _last_time = 0
-
-# =========================
-# SIGNAL MEMORY (V63 CORE)
-# =========================
 last_signal_time = {}
 last_trend = {}
 
-
 CACHE_SECONDS = 5
-COOLDOWN_SECONDS = 45   # مهم: V63 stronger than V62
-
+COOLDOWN_SECONDS = 30
 
 # =========================
 # INDICATORS
 # =========================
 def volatility(closes):
-    return np.std(closes[-50:]) / closes[-1]
-
+    closes = np.array(closes[-50:])
+    return np.std(closes) / closes[-1]
 
 def ema(values, period):
     values = np.array(values)
-
     if len(values) < period:
         return None
 
@@ -44,25 +38,20 @@ def ema(values, period):
 
     return e
 
-
 # =========================
-# TREND STABILITY FILTER (NEW V63)
+# TREND FILTER (SOFT)
 # =========================
 def trend_stable(symbol, direction):
-
     if symbol in last_trend:
         if last_trend[symbol] == direction:
-            return False  # جلوگیری از spam same trend
-
+            return True   # نرم شد
     last_trend[symbol] = direction
     return True
 
-
 # =========================
-# COOLDOWN PER SYMBOL
+# COOLDOWN
 # =========================
 def cooldown_ok(symbol):
-
     now = time.time()
 
     if symbol in last_signal_time:
@@ -72,12 +61,10 @@ def cooldown_ok(symbol):
     last_signal_time[symbol] = now
     return True
 
-
 # =========================
 # MAIN ENGINE
 # =========================
 def get_signals():
-
     global _last_time
 
     if time.time() - _last_time < CACHE_SECONDS:
@@ -91,16 +78,16 @@ def get_signals():
 
         closes = get_klines(s)
 
-        if len(closes) < 100:
+        if not closes or len(closes) < 200:
             continue
 
         price = closes[-1]
 
         # =========================
-        # V63 FILTER: NOISE REMOVAL
+        # VOLATILITY FILTER (SOFT)
         # =========================
         vol = volatility(closes)
-        if vol < 0.00025:
+        if vol < 0.0001:
             continue
 
         ema50 = ema(closes[-50:], 50)
@@ -112,45 +99,43 @@ def get_signals():
         trend = "BUY" if ema50 > ema200 else "SELL"
 
         # =========================
-        # V63 CORE INTELLIGENCE
+        # COOLDOWN
         # =========================
-
-        # 1. trend stability filter
-        if not trend_stable(s, trend):
-            continue
-
-        # 2. cooldown filter
         if not cooldown_ok(s):
             continue
 
         # =========================
-        # BASE STRUCTURE SCORE
+        # BASE SCORE
         # =========================
-        base = 2.2
+        base = 2.0
 
         if abs(ema50 - ema200) / price > 0.002:
-            base *= 1.2
+            base += 0.5
 
         # =========================
-        # AI ADAPTIVE SCORE
+        # AI SCORE
         # =========================
         score = adaptive_score(s, base)
 
         # =========================
-        # FINAL FILTER (V63 stricter)
+        # FINAL FILTER (RELAXED)
         # =========================
-        if score < 2.3:
+        if score < 1.7:
             continue
 
         # =========================
-        # TP / SL (ATR STYLE SIMPLE)
+        # TP / SL
         # =========================
         atr = np.mean(np.abs(np.diff(closes[-14:])))
 
-        sl = price - atr * 1.5 if trend == "BUY" else price + atr * 1.5
-        tp = price + atr * 3 if trend == "BUY" else price - atr * 3
+        if trend == "BUY":
+            sl = price - atr * 1.5
+            tp = price + atr * 3
+        else:
+            sl = price + atr * 1.5
+            tp = price - atr * 3
 
-        confidence = min(92, 55 + score * 12)
+        confidence = min(90, 50 + score * 15)
 
         signals.append({
             "symbol": s,
@@ -160,7 +145,7 @@ def get_signals():
             "tp": float(tp),
             "score": round(score, 2),
             "confidence": round(confidence, 1),
-            "regime": "V63_SMART_BRAIN"
+            "regime": "V63_FIXED"
         })
 
     return signals
