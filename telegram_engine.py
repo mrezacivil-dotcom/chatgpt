@@ -1,19 +1,21 @@
 import os
 import requests
 
-# اگر از GitHub Secrets استفاده کردی:
-# 0
-
 BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
 
 def send_signal(signal):
 
-    try:
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    if not BOT_TOKEN or not CHAT_ID:
+        print("❌ Missing Telegram credentials")
+        print("BOT_TOKEN:", BOT_TOKEN)
+        print("CHAT_ID:", CHAT_ID)
+        return
 
-        text = f"""
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+
+    text = f"""
 🚀 TRADE SIGNAL
 
 Symbol: {signal.get('symbol', 'N/A')}
@@ -28,16 +30,19 @@ TP: {signal.get('tp', 'N/A')}
 Regime: {signal.get('regime', 'N/A')}
 """
 
-        payload = {
-            "chat_id": CHAT_ID,
-            "text": text
-        }
+    payload = {
+        "chat_id": CHAT_ID,
+        "text": text
+    }
 
+    try:
         response = requests.post(url, data=payload)
+        data = response.json()
 
-        print("📨 Telegram response:", response.text)
+        if data.get("ok"):
+            print("✅ Telegram message sent successfully")
+        else:
+            print("❌ Telegram API error:", data)
 
     except Exception as e:
-        print("❌ Telegram error:", str(e))
-print("TOKEN:", BOT_TOKEN)
-print("CHAT_ID:", CHAT_ID)
+        print("❌ Request failed:", str(e))
