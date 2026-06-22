@@ -89,3 +89,4 @@ send_signal({
     "direction": "LONG",
     "score": 100
 })
+print("SIGNALS RAW:", signals)
