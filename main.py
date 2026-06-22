@@ -1,6 +1,4 @@
 import time
-import json
-import os
 
 from signal_engine import get_signals
 from execution_engine import (
@@ -12,81 +10,63 @@ from execution_engine import (
 from price_engine import get_price
 from telegram_engine import send_signal
 
-
-LOCK_FILE = "trade_lock.json"
-LOCK_SECONDS = 60
-
-
-def load_lock():
-    if not os.path.exists(LOCK_FILE):
-        return {}
-    try:
-        with open(LOCK_FILE, "r") as f:
-            return json.load(f)
-    except:
-        return {}
-
-
-def save_lock(data):
-    with open(LOCK_FILE, "w") as f:
-        json.dump(data, f)
-
-
-def is_trade_locked(symbol, direction):
-    key = f"{symbol}_{direction}"
-    now = time.time()
-
-    lock = load_lock()
-
-    if key in lock:
-        if now - lock[key] < LOCK_SECONDS:
-            return True
-
-    lock[key] = now
-    save_lock(lock)
-    return False
-
-
+# =========================
+# MAIN LOOP
+# =========================
 def run():
+
     print("🚀 GITHUB SIGNAL BOT STARTED")
 
-    try:
-        update_positions(get_price)
+    while True:
 
-        signals = get_signals()
-print("SIGNALS RAW:", signals)
-        if not signals:
-            print("📡 NO SIGNAL")
-            return
+        try:
+            # =========================
+            # UPDATE POSITIONS
+            # =========================
+            update_positions(get_price)
 
-        best = max(signals, key=lambda x: x["score"])
-        print("🔥 SIGNAL:", best)
+            # =========================
+            # GET SIGNALS
+            # =========================
+            signals = get_signals()
 
-        symbol = best["symbol"]
-        direction = best["direction"]
+            print("SIGNALS RAW:", signals)
 
-        if is_trade_locked(symbol, direction):
-            print("⛔ LOCKED")
-            return
+            if not signals:
+                print("📡 NO SIGNAL")
+                time.sleep(2)
+                continue
 
-        if has_position(symbol, direction):
-            print("⛔ POSITION EXISTS")
-            return
+            best = max(signals, key=lambda x: x["score"])
 
-        open_position(best)
-        send_signal(best)
+            print("🔥 SIGNAL:", best)
 
-        print("📊 TOTAL POSITIONS:", len(get_positions()))
+            symbol = best["symbol"]
+            direction = best["direction"]
 
-    except Exception as e:
-        print("❌ ERROR:", e)
+            # =========================
+            # POSITION CHECK
+            # =========================
+            if has_position(symbol, direction):
+                print("⛔ POSITION EXISTS")
+                time.sleep(2)
+                continue
+
+            # =========================
+            # EXECUTION
+            # =========================
+            open_position(best)
+
+            send_signal(best)
+
+            print("📊 SENT TO TELEGRAM")
+
+            time.sleep(2)
+
+        except Exception as e:
+            print("❌ ERROR:", e)
+            time.sleep(2)
 
 
-if __name__ == "__main__":
+if name == "main":
     run()
-send_signal({
-    "symbol": "TEST",
-    "direction": "LONG",
-    "score": 100
-})
-
