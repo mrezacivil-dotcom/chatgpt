@@ -70,3 +70,5 @@ def run():
 
 if name == "main":
     run()
+if name == "main":
+    run()
