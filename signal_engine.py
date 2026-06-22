@@ -138,14 +138,16 @@ def get_signals():
         confidence = min(90, 50 + score * 15)
 
         signals.append({
-            "symbol": s,
-            "direction": trend,
-            "entry": float(price),
-            "sl": float(sl),
-            "tp": float(tp),
-            "score": round(score, 2),
-            "confidence": round(confidence, 1),
-            "regime": "V63_FIXED"
-        })
+    "symbol": s,
+    "direction": "BUY",
+    "entry": price,
+    "sl": price * 0.99,
+    "tp": price * 1.01,
+    "score": 2.0,
+    "confidence": 80,
+    "regime": "TEST_MODE"
+})
+break
 
     return signals
+    print("DEBUG:", s, len(closes), vol, score)
