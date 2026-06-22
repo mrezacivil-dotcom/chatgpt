@@ -39,3 +39,5 @@ Regime: {signal.get('regime', 'N/A')}
 
     except Exception as e:
         print("❌ Telegram error:", str(e))
+print("TOKEN:", BOT_TOKEN)
+print("CHAT_ID:", CHAT_ID)
