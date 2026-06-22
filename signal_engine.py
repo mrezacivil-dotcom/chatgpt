@@ -8,15 +8,14 @@ SYMBOLS = [
     "ADAUSDT","DOGEUSDT","AVAXUSDT","DOTUSDT","LINKUSDT"
 ]
 
-# =========================
-# MEMORY
-# =========================
 _last_time = 0
+
 last_signal_time = {}
 last_trend = {}
 
 CACHE_SECONDS = 5
 COOLDOWN_SECONDS = 30
+
 
 # =========================
 # INDICATORS
@@ -25,8 +24,10 @@ def volatility(closes):
     closes = np.array(closes[-50:])
     return np.std(closes) / closes[-1]
 
+
 def ema(values, period):
     values = np.array(values)
+
     if len(values) < period:
         return None
 
@@ -38,15 +39,18 @@ def ema(values, period):
 
     return e
 
+
 # =========================
 # TREND FILTER (SOFT)
 # =========================
 def trend_stable(symbol, direction):
     if symbol in last_trend:
         if last_trend[symbol] == direction:
-            return True   # نرم شد
+            return True
+
     last_trend[symbol] = direction
     return True
+
 
 # =========================
 # COOLDOWN
@@ -60,6 +64,7 @@ def cooldown_ok(symbol):
 
     last_signal_time[symbol] = now
     return True
+
 
 # =========================
 # MAIN ENGINE
@@ -83,10 +88,8 @@ def get_signals():
 
         price = closes[-1]
 
-        # =========================
-        # VOLATILITY FILTER (SOFT)
-        # =========================
         vol = volatility(closes)
+
         if vol < 0.0001:
             continue
 
@@ -98,34 +101,19 @@ def get_signals():
 
         trend = "BUY" if ema50 > ema200 else "SELL"
 
-        # =========================
-        # COOLDOWN
-        # =========================
         if not cooldown_ok(s):
             continue
 
-        # =========================
-        # BASE SCORE
-        # =========================
         base = 2.0
 
         if abs(ema50 - ema200) / price > 0.002:
             base += 0.5
 
-        # =========================
-        # AI SCORE
-        # =========================
         score = adaptive_score(s, base)
 
-        # =========================
-        # FINAL FILTER (RELAXED)
-        # =========================
         if score < 1.7:
             continue
 
-        # =========================
-        # TP / SL
-        # =========================
         atr = np.mean(np.abs(np.diff(closes[-14:])))
 
         if trend == "BUY":
@@ -138,15 +126,14 @@ def get_signals():
         confidence = min(90, 50 + score * 15)
 
         signals.append({
-    "symbol": s,
-    "direction": "BUY",
-    "entry": price,
-    "sl": price * 0.99,
-    "tp": price * 1.01,
-    "score": 2.0,
-    "confidence": 80,
-    "regime": "TEST_MODE"
-    })
-    break
+            "symbol": s,
+            "direction": trend,
+            "entry": float(price),
+            "sl": float(sl),
+            "tp": float(tp),
+            "score": round(score, 2),
+            "confidence": round(confidence, 1),
+            "regime": "V63_FIXED"
+        })
+
     return signals
-    print("DEBUG:", s, len(closes), vol, score)
