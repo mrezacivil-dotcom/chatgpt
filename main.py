@@ -10,6 +10,7 @@ from execution_engine import (
 from price_engine import get_price
 from telegram_engine import send_signal
 
+
 # =========================
 # MAIN LOOP
 # =========================
@@ -32,11 +33,13 @@ def run():
 
             print("SIGNALS RAW:", signals)
 
+            # اگر سیگنال نبود
             if not signals:
                 print("📡 NO SIGNAL")
                 time.sleep(2)
                 continue
 
+            # بهترین سیگنال
             best = max(signals, key=lambda x: x["score"])
 
             print("🔥 SIGNAL:", best)
@@ -45,7 +48,7 @@ def run():
             direction = best["direction"]
 
             # =========================
-            # POSITION CHECK
+            # CHECK POSITION
             # =========================
             if has_position(symbol, direction):
                 print("⛔ POSITION EXISTS")
@@ -53,13 +56,13 @@ def run():
                 continue
 
             # =========================
-            # EXECUTION
+            # EXECUTE TRADE
             # =========================
             open_position(best)
 
             send_signal(best)
 
-            print("📊 SENT TO TELEGRAM")
+            print("📨 SENT TO TELEGRAM")
 
             time.sleep(2)
 
@@ -68,7 +71,8 @@ def run():
             time.sleep(2)
 
 
-if name == "main":
-    run()
+# =========================
+# ENTRY POINT (FIXED)
+# =========================
 if name == "main":
     run()
