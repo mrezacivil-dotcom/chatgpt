@@ -1,62 +1,88 @@
 import os
-
-print("TOKEN EXISTS:", bool(os.getenv("TELEGRAM_TOKEN")))
-print("CHAT_ID EXISTS:", bool(os.getenv("CHAT_ID")))
 import time
+import requests
 
-from signal_engine import get_signals
-from execution_engine import (
-    open_position,
-    update_positions,
-    has_position
-)
-from price_engine import get_price
-from telegram_engine import send_signal
+# =========================
+# LOAD ENV VARIABLES
+# =========================
+BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
 
 
-def run():
+print("🚀 BOT STARTING...")
+print("TOKEN LOADED:", bool(BOT_TOKEN))
+print("CHAT_ID LOADED:", bool(CHAT_ID))
 
-    print("🚀 GITHUB SIGNAL BOT STARTED")
+
+# =========================
+# TELEGRAM SEND FUNCTION
+# =========================
+def send_telegram(message: str):
+    if not BOT_TOKEN or not CHAT_ID:
+        print("❌ Missing TELEGRAM_TOKEN or CHAT_ID")
+        return
+
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+
+    payload = {
+        "chat_id": CHAT_ID,
+        "text": message
+    }
 
     try:
-        print("STEP 1: update_positions")
-        update_positions(get_price)
+        response = requests.post(url, data=payload)
+        data = response.json()
 
-        print("STEP 2: get_signals")
-        signals = get_signals()
-
-        print("SIGNALS RAW:", signals)
-
-        if not signals:
-            print("📡 NO SIGNAL")
-            return
-
-        print("STEP 3: select best signal")
-
-        best = max(signals, key=lambda x: x["score"])
-
-        print("🔥 SIGNAL:", best)
-
-        symbol = best["symbol"]
-        direction = best["direction"]
-
-        print("STEP 4: position check")
-
-        if has_position(symbol, direction):
-            print("⛔ POSITION EXISTS")
-            return
-
-        print("STEP 5: open position")
-        open_position(best)
-
-        print("STEP 6: send telegram")
-        send_signal(best)
-
-        print("📨 SENT TO TELEGRAM")
+        if data.get("ok"):
+            print("✅ Message sent to Telegram")
+        else:
+            print("❌ Telegram API error:", data)
 
     except Exception as e:
-        print("❌ ERROR:", e)
+        print("❌ Request error:", str(e))
+
+
+# =========================
+# MOCK SIGNAL (TEST)
+# =========================
+def get_signal():
+    return {
+        "symbol": "BTCUSDT",
+        "direction": "BUY",
+        "score": 85,
+        "confidence": 0.78,
+        "entry": 65000,
+        "sl": 64000,
+        "tp": 67000,
+        "regime": "trend"
+    }
+
+
+# =========================
+# MAIN LOOP
+# =========================
+def main():
+    print("🚀 GITHUB SIGNAL BOT STARTED")
+
+    signal = get_signal()
+    print("SIGNAL:", signal)
+
+    message = f"""
+🚀 TRADE SIGNAL
+
+Symbol: {signal['symbol']}
+Direction: {signal['direction']}
+Score: {signal['score']}
+Confidence: {signal['confidence']}
+
+Entry: {signal['entry']}
+SL: {signal['sl']}
+TP: {signal['tp']}
+Regime: {signal['regime']}
+"""
+
+    send_telegram(message)
 
 
 if __name__ == "__main__":
-    run()
+    main()
