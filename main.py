@@ -68,5 +68,19 @@ def run():
        # =========================
        # ENTRY POINT
        # =========================
-       if __name__ == "__main__":
-       run()
+       def run():
+    print("🚀 GITHUB SIGNAL BOT STARTED")
+
+    signals = get_signals()
+
+    if signals:
+        best = max(signals, key=lambda x: x["score"])
+        send_signal(best)
+        print("📨 SIGNAL SENT")
+    else:
+        print("📡 NO SIGNAL")
+
+
+if __name__ == "__main__":
+    run()
+    
