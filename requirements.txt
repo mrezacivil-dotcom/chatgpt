@@ -1,10 +1,10 @@
 numpy
 pandas
 requests
+aiohttp
 ccxt
+python-binance
 ta
 pyTelegramBotAPI
-python-binance
-python-dateutil
-pytz
 dateparser
+cryptography
