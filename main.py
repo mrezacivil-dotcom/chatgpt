@@ -84,3 +84,8 @@ def run():
 
 if __name__ == "__main__":
     run()
+send_signal({
+    "symbol": "TEST",
+    "direction": "LONG",
+    "score": 100
+})
