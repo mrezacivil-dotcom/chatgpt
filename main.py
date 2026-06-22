@@ -54,7 +54,7 @@ def run():
         update_positions(get_price)
 
         signals = get_signals()
-
+print("SIGNALS RAW:", signals)
         if not signals:
             print("📡 NO SIGNAL")
             return
@@ -89,4 +89,4 @@ send_signal({
     "direction": "LONG",
     "score": 100
 })
-print("SIGNALS RAW:", signals)
+
