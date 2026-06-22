@@ -49,11 +49,7 @@ def is_trade_locked(symbol, direction):
 
 def run():
     print("🚀 GITHUB SIGNAL BOT STARTED")
-send_signal({
-    "symbol": "BTCUSDT",
-    "direction": "LONG",
-    "score": 99
-})
+
     try:
         update_positions(get_price)
 
