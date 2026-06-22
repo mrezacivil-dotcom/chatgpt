@@ -1,9 +1,8 @@
+import os
 import requests
 
-BOT_TOKEN = "YOUR_TOKEN"
-CHAT_ID = "YOUR_CHAT_ID"
-
-import os
+# اگر از GitHub Secrets استفاده کردی:
+# 0
 
 BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
@@ -11,25 +10,32 @@ CHAT_ID = os.getenv("CHAT_ID")
 
 def send_signal(signal):
 
-    text = f"""
-🚀 V62 SIGNAL
+    try:
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
-{signal['symbol']} {signal['direction']}
+        text = f"""
+🚀 TRADE SIGNAL
 
-Entry: {signal['entry']:.4f}
-SL: {signal['sl']:.4f}
-TP: {signal['tp']:.4f}
+Symbol: {signal.get('symbol', 'N/A')}
+Direction: {signal.get('direction', 'N/A')}
+Score: {signal.get('score', 'N/A')}
+Confidence: {signal.get('confidence', 'N/A')}
 
-Score: {signal['score']}
-Conf: {signal['confidence']}%
+Entry: {signal.get('entry', 'N/A')}
+SL: {signal.get('sl', 'N/A')}
+TP: {signal.get('tp', 'N/A')}
+
+Regime: {signal.get('regime', 'N/A')}
 """
 
-    try:
-        requests.post(URL, data={
+        payload = {
             "chat_id": CHAT_ID,
             "text": text
-        })
-        print("📨 TG SENT OK")
+        }
+
+        response = requests.post(url, data=payload)
+
+        print("📨 Telegram response:", response.text)
 
     except Exception as e:
-        print("TG ERROR:", e)
+        print("❌ Telegram error:", str(e))
