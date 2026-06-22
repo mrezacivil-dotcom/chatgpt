@@ -65,5 +65,8 @@ def run():
             time.sleep(2)
 
 
-if name == "main":
-    run()
+       # =========================
+       # ENTRY POINT
+       # =========================
+       if __name__ == "__main__":
+       run()
