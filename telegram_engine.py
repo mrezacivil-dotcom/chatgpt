@@ -26,7 +26,7 @@ Conf: {signal['confidence']}%
 
     try:
         requests.post(URL, data={
-            "chat_id": CHAT ID,
+            "chat_id": CHAT_ID,
             "text": text
         })
         print("📨 TG SENT OK")
