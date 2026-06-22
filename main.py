@@ -14,51 +14,44 @@ def run():
 
     print("🚀 GITHUB SIGNAL BOT STARTED")
 
-    while True:
+    try:
+        print("STEP 1: update_positions")
+        update_positions(get_price)
 
-        try:
-            print("STEP 1: update_positions")
-            update_positions(get_price)
+        print("STEP 2: get_signals")
+        signals = get_signals()
 
-            print("STEP 2: get_signals")
-            signals = get_signals()
+        print("SIGNALS RAW:", signals)
 
-            print("SIGNALS RAW:", signals)
+        if not signals:
+            print("📡 NO SIGNAL")
+            return
 
-            if not signals:
-                print("📡 NO SIGNAL")
-                time.sleep(2)
-                continue
+        print("STEP 3: select best signal")
 
-            print("STEP 3: select best signal")
+        best = max(signals, key=lambda x: x["score"])
 
-            best = max(signals, key=lambda x: x["score"])
+        print("🔥 SIGNAL:", best)
 
-            print("🔥 SIGNAL:", best)
+        symbol = best["symbol"]
+        direction = best["direction"]
 
-            symbol = best["symbol"]
-            direction = best["direction"]
+        print("STEP 4: position check")
 
-            print("STEP 4: position check")
+        if has_position(symbol, direction):
+            print("⛔ POSITION EXISTS")
+            return
 
-            if has_position(symbol, direction):
-                print("⛔ POSITION EXISTS")
-                time.sleep(2)
-                continue
+        print("STEP 5: open position")
+        open_position(best)
 
-            print("STEP 5: open position")
-            open_position(best)
+        print("STEP 6: send telegram")
+        send_signal(best)
 
-            print("STEP 6: send telegram")
-            send_signal(best)
+        print("📨 SENT TO TELEGRAM")
 
-            print("📨 SENT TO TELEGRAM")
-
-            time.sleep(2)
-
-        except Exception as e:
-            print("❌ ERROR:", e)
-            time.sleep(2)
+    except Exception as e:
+        print("❌ ERROR:", e)
 
 
 if __name__ == "__main__":
