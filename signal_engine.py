@@ -146,8 +146,7 @@ def get_signals():
     "score": 2.0,
     "confidence": 80,
     "regime": "TEST_MODE"
-})
-break
-
+    })
+    break
     return signals
     print("DEBUG:", s, len(closes), vol, score)
