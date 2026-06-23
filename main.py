@@ -15,16 +15,15 @@ def send_signal(signal):
 
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
-    text = f"""
-🚀 TRADE SIGNAL
-
-Symbol: {signal.get('symbol', 'N/A')}
-Direction: {signal.get('direction', 'N/A')}
-Score: {signal.get('score', 'N/A')}
-Entry: {signal.get('entry', 'N/A')}
-SL: {signal.get('sl', 'N/A')}
-TP: {signal.get('tp', 'N/A')}
-"""
+  text = (
+    "🚀 TRADE SIGNAL\n\n"
+    f"Symbol: {signal.get('symbol', 'N/A')}\n"
+    f"Direction: {signal.get('direction', 'N/A')}\n"
+    f"Score: {signal.get('score', 'N/A')}\n\n"
+    f"Entry: {signal.get('entry', 'N/A')}\n"
+    f"SL: {signal.get('sl', 'N/A')}\n"
+    f"TP: {signal.get('tp', 'N/A')}"
+)
 
     payload = {
         "chat_id": CHAT_ID,
