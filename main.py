@@ -1,136 +1,103 @@
 import os
+import time
+import requests
 import ccxt
 import pandas as pd
-import requests
 
-# ======================
-# CONFIG
-# ======================
+# ================== CONFIG ==================
 BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-exchange = ccxt.bybit({
+BYBIT = ccxt.bybit({
     "enableRateLimit": True,
-    "options": {"defaultType": "spot"}
+    "timeout": 10000
 })
 
-timeframes = ["1h", "4h"]
+TIMEFRAMES = ["1h", "4h"]
 
-symbols = [
-    "BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT",
-    "XRP/USDT", "ADA/USDT", "AVAX/USDT", "DOGE/USDT"
-]
-
-# ======================
-# INDICATORS
-# ======================
-def ema(s, p):
-    return s.ewm(span=p, adjust=False).mean()
-
-def rsi(s, p=14):
-    d = s.diff()
-    g = d.where(d > 0, 0).rolling(p).mean()
-    l = (-d.where(d < 0, 0)).rolling(p).mean()
-    rs = g / l
-    return 100 - (100 / (1 + rs))
-
-def volatility(df):
-    return (df["high"] - df["low"]).rolling(14).mean()
-
-# ======================
-# TELEGRAM
-# ======================
-def send(signal):
+# ================== TELEGRAM ==================
+def send_signal(signal):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
     text = (
-        "🚀 HIGH ACCURACY SIGNAL\n\n"
-        f"{signal['symbol']} | {signal['timeframe']}\n"
-        f"{signal['direction']} | Score: {signal['score']}\n"
-        f"RSI: {signal['rsi']:.2f}\nVol: {signal['vol']:.2f}\n\n"
+        "🚀 TRADE SIGNAL\n\n"
+        f"Symbol: {signal['symbol']}\n"
+        f"TF: {signal['tf']}\n"
+        f"Direction: {signal['side']}\n"
+        f"Score: {signal['score']}\n\n"
         f"Entry: {signal['entry']}\n"
         f"SL: {signal['sl']}\n"
         f"TP: {signal['tp']}"
     )
 
-    requests.post(url, data={"chat_id": CHAT_ID, "text": text})
+    try:
+        requests.post(
+            url,
+            data={"chat_id": CHAT_ID, "text": text},
+            timeout=10
+        )
+        print("📨 SENT:", signal["symbol"])
+    except Exception as e:
+        print("Telegram error:", e)
 
-# ======================
-# SIGNAL ENGINE (SMART)
-# ======================
-def check(df):
-    df["ema50"] = ema(df["close"], 50)
-    df["ema200"] = ema(df["close"], 200)
-    df["rsi"] = rsi(df["close"])
-    df["vol"] = volatility(df)
 
-    last = df.iloc[-1]
+# ================== INDICATOR ==================
+def get_signal(df):
+    df["ema_fast"] = df["close"].ewm(span=20).mean()
+    df["ema_slow"] = df["close"].ewm(span=50).mean()
 
-    score = 0
-    direction = None
+    if df["ema_fast"].iloc[-1] > df["ema_slow"].iloc[-1]:
+        return "BUY", 80
+    elif df["ema_fast"].iloc[-1] < df["ema_slow"].iloc[-1]:
+        return "SELL", 80
 
-    # Trend filter (MAIN)
-    if last["ema50"] > last["ema200"]:
-        direction = "BUY"
-        score += 2
-    elif last["ema50"] < last["ema200"]:
-        direction = "SELL"
-        score += 2
-    else:
+    return None, 0
+
+
+# ================== FETCH DATA ==================
+def fetch(symbol, tf):
+    try:
+        ohlcv = BYBIT.fetch_ohlcv(symbol, timeframe=tf, limit=100)
+        df = pd.DataFrame(ohlcv, columns=["time","open","high","low","close","vol"])
+        return df
+    except Exception as e:
+        print("Fetch error:", symbol, tf, e)
         return None
 
-    # RSI confirmation (strict)
-    if direction == "BUY" and 45 < last["rsi"] < 70:
-        score += 1
-    elif direction == "SELL" and 30 < last["rsi"] < 55:
-        score += 1
-    else:
-        score -= 1  # weak condition
 
-    # Volatility filter (avoid flat market)
-    if last["vol"] > df["vol"].mean():
-        score += 1
-
-    # FINAL QUALITY FILTER (important)
-    if score < 3:
-        return None
-
-    price = last["close"]
-
-    return {
-        "direction": direction,
-        "score": score,
-        "rsi": float(last["rsi"]),
-        "vol": float(last["vol"]),
-        "entry": price,
-        "sl": price * (0.985 if direction == "BUY" else 1.015),
-        "tp": price * (1.025 if direction == "BUY" else 0.975),
-    }
-
-# ======================
-# MAIN LOOP
-# ======================
+# ================== MAIN LOOP ==================
 def run():
-    print("Scanning market...")
+    markets = BYBIT.load_markets()
+    symbols = [s for s in markets if "/USDT" in s]
 
-    for symbol in symbols:
-        for tf in timeframes:
-            try:
-                df = exchange.fetch_ohlcv(symbol, tf, limit=200)
-                df = pd.DataFrame(df, columns=["t","o","h","l","c","v"])
-                df.rename(columns={"c":"close","h":"high","l":"low"}, inplace=True)
+    print("STARTED - symbols:", len(symbols))
 
-                signal = check(df)
+    while True:
+        for symbol in symbols:
 
-                if signal:
-                    signal["symbol"] = symbol
-                    signal["timeframe"] = tf
-                    send(signal)
-                    print("SENT:", symbol, tf, signal["direction"])
+            for tf in TIMEFRAMES:
+                df = fetch(symbol, tf)
+                if df is None or len(df) < 50:
+                    continue
 
-            except Exception as e:
-                print("ERROR:", symbol, tf, e)
+                side, score = get_signal(df)
+
+                if score >= 80:
+                    signal = {
+                        "symbol": symbol,
+                        "tf": tf,
+                        "side": side,
+                        "score": score,
+                        "entry": df["close"].iloc[-1],
+                        "sl": df["close"].iloc[-1] * 0.98,
+                        "tp": df["close"].iloc[-1] * 1.03
+                    }
+
+                    send_signal(signal)
+
+        print("CYCLE DONE")
+        time.sleep(60)
+
 
 if __name__ == "__main__":
     run()
-    print("DONE")
