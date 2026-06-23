@@ -23,9 +23,14 @@ jobs:
         run: |
           pip install numpy pandas requests aiohttp ccxt python-binance ta pyTelegramBotAPI dateparser cryptography
 
-      - name: Run bot
+      # ================= DEBUG =================
+      - name: Check Secrets
+        run: |
+          python -c "import os; print('TOKEN:', bool(os.getenv('TELEGRAM_TOKEN'))); print('CHAT:', bool(os.getenv('CHAT_ID')))"
+
+      # ================= RUN BOT =================
+      - name: Run Bot
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
         run: python main.py
-  
