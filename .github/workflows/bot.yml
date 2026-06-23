@@ -4,11 +4,12 @@ on:
   workflow_dispatch:
 
 jobs:
-  run:
+  run-bot:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Python
@@ -23,13 +24,11 @@ jobs:
         run: |
           pip install numpy pandas requests aiohttp ccxt python-binance ta pyTelegramBotAPI dateparser cryptography
 
-      # ================= DEBUG =================
-      - name: Check Secrets
+      - name: Verify environment
         run: |
-          python -c "import os; print('TOKEN:', bool(os.getenv('TELEGRAM_TOKEN'))); print('CHAT:', bool(os.getenv('CHAT_ID')))"
+          python -c "import os; print('TOKEN OK:', bool(os.getenv('TELEGRAM_TOKEN'))); print('CHAT OK:', bool(os.getenv('CHAT_ID')))"
 
-      # ================= RUN BOT =================
-      - name: Run Bot
+      - name: Run bot
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
