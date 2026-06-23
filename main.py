@@ -1,111 +1,103 @@
 import os
 import time
 import requests
-import ccxt
-import pandas as pd
 
+# ===================== CONFIG =====================
 BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-exchange = ccxt.bybit({
-    "enableRateLimit": True,
-    "timeout": 10000,
-    "options": {
-        "defaultType": "swap"
-    }
-})
+BYBIT_URL = "https://api.bybit.com/v5/market/instruments-info"
 
-TIMEFRAMES = ["1h", "4h"]
-
-# ================= TELEGRAM =================
+# ===================== TELEGRAM =====================
 def send_signal(signal):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-
-    text = (
-        "🚀 TRADE SIGNAL\n\n"
-        f"Symbol: {signal['symbol']}\n"
-        f"TF: {signal['tf']}\n"
-        f"Side: {signal['side']}\n"
-        f"Score: {signal['score']}\n\n"
-        f"Entry: {signal['entry']}\n"
-        f"SL: {signal['sl']}\n"
-        f"TP: {signal['tp']}"
-    )
-
     try:
-        requests.post(url, data={"chat_id": CHAT_ID, "text": text}, timeout=10)
-        print("SENT:", signal["symbol"])
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+
+        text = (
+            "🚀 TRADE SIGNAL\n\n"
+            f"Symbol: {signal.get('symbol', 'N/A')}\n"
+            f"Direction: {signal.get('direction', 'N/A')}\n"
+            f"Score: {signal.get('score', 'N/A')}\n"
+            f"Confidence: {signal.get('confidence', 'N/A')}\n\n"
+            f"Entry: {signal.get('entry', 'N/A')}\n"
+            f"SL: {signal.get('sl', 'N/A')}\n"
+            f"TP: {signal.get('tp', 'N/A')}\n\n"
+            f"Regime: {signal.get('regime', 'N/A')}"
+        )
+
+        payload = {
+            "chat_id": CHAT_ID,
+            "text": text
+        }
+
+        r = requests.post(url, data=payload, timeout=10)
+
+        print("Telegram response:", r.text)
+
     except Exception as e:
-        print("Telegram error:", e)
+        print("Telegram error:", str(e))
 
 
-# ================= INDICATOR =================
-def signal(df):
-    df["ema20"] = df["close"].ewm(span=20).mean()
-    df["ema50"] = df["close"].ewm(span=50).mean()
-
-    if df["ema20"].iloc[-1] > df["ema50"].iloc[-1]:
-        return "BUY", 80
-    elif df["ema20"].iloc[-1] < df["ema50"].iloc[-1]:
-        return "SELL", 80
-
-    return None, 0
-
-
-# ================= FETCH =================
-def get_data(symbol, tf):
-    try:
-        ohlcv = exchange.fetch_ohlcv(symbol, timeframe=tf, limit=100)
-        df = pd.DataFrame(ohlcv, columns=["t","o","h","l","c","v"])
-        return df
-    except Exception as e:
-        print("fetch error:", symbol, e)
-        return None
-
-
-# ================= SYMBOLS (SAFE) =================
+# ===================== BYBIT SYMBOLS =====================
 def get_symbols():
-    markets = exchange.load_markets()
-    symbols = []
+    try:
+        r = requests.get(BYBIT_URL, params={"category": "linear"}, timeout=10)
+        data = r.json()
 
-    for s in markets:
-        if s.endswith("/USDT") and markets[s]["active"]:
-            symbols.append(s)
+        if "result" not in data:
+            print("Bybit error:", data)
+            return []
 
-    return symbols[:30]   # 👈 مهم: محدود شده برای جلوگیری از هنگ
+        symbols = [
+            item["symbol"]
+            for item in data["result"]["list"]
+            if item.get("status") == "Trading"
+        ]
+
+        return symbols
+
+    except Exception as e:
+        print("Symbol error:", str(e))
+        return []
 
 
-# ================= MAIN =================
+# ===================== SIMPLE SIGNAL ENGINE =====================
+def analyze(symbol):
+    # این بخش فعلاً ساده است (بعداً حرفه‌ایش می‌کنیم)
+    return {
+        "symbol": symbol,
+        "direction": "BUY",
+        "score": 80,
+        "confidence": "HIGH",
+        "entry": 100,
+        "sl": 95,
+        "tp": 110,
+        "regime": "TREND"
+    }
+
+
+# ===================== MAIN LOOP =====================
 def run():
-    symbols = get_symbols()
-    print("Symbols loaded:", len(symbols))
+    print("BOT STARTED...")
+
+    if not BOT_TOKEN or not CHAT_ID:
+        print("Missing TELEGRAM_TOKEN or CHAT_ID")
+        return
 
     while True:
-        for symbol in symbols:
-            for tf in TIMEFRAMES:
+        symbols = get_symbols()
 
-                df = get_data(symbol, tf)
-                if df is None or len(df) < 50:
-                    continue
+        print("Symbols loaded:", len(symbols))
 
-                side, score = signal(df)
+        for s in symbols[:30]:  # سبک نگه داشتن
+            signal = analyze(s)
+            send_signal(signal)
+            time.sleep(0.2)  # جلوگیری از اسپم تلگرام
 
-                if score >= 80:
-                    last = df["c"].iloc[-1]
-
-                    send_signal({
-                        "symbol": symbol,
-                        "tf": tf,
-                        "side": side,
-                        "score": score,
-                        "entry": last,
-                        "sl": last * 0.98,
-                        "tp": last * 1.03
-                    })
-
-        print("cycle done")
+        print("Cycle done. Sleeping...")
         time.sleep(60)
 
 
+# ===================== START =====================
 if __name__ == "__main__":
     run()
