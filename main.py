@@ -3,94 +3,71 @@ import ccxt
 import pandas as pd
 import requests
 
-# ======================
-# CONFIG
-# ======================
 BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
 exchange = ccxt.bybit({
     "enableRateLimit": True,
-    "options": {
-        "defaultType": "spot"
-    }
+    "options": {"defaultType": "spot"}
 })
 
 timeframes = ["1h", "4h"]
 
+# ================= INDICATORS =================
+def ema(s, p):
+    return s.ewm(span=p, adjust=False).mean()
 
-# ======================
-# INDICATORS
-# ======================
-def ema(series, period):
-    return series.ewm(span=period, adjust=False).mean()
-
-
-def rsi(series, period=14):
-    delta = series.diff()
-    gain = (delta.where(delta > 0, 0)).rolling(period).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(period).mean()
-    rs = gain / loss
+def rsi(s, p=14):
+    d = s.diff()
+    g = d.where(d > 0, 0).rolling(p).mean()
+    l = (-d.where(d < 0, 0)).rolling(p).mean()
+    rs = g / l
     return 100 - (100 / (1 + rs))
 
-
-def adx(df, period=14):
-    high = df["high"]
-    low = df["low"]
-    close = df["close"]
-
+def adx(df, p=14):
+    h, l, c = df["high"], df["low"], df["close"]
     tr = pd.concat([
-        high - low,
-        (high - close.shift()).abs(),
-        (low - close.shift()).abs()
+        h - l,
+        (h - c.shift()).abs(),
+        (l - c.shift()).abs()
     ], axis=1).max(axis=1)
 
-    atr = tr.rolling(period).mean()
+    atr = tr.rolling(p).mean()
 
-    plus_dm = high.diff()
-    minus_dm = low.diff()
+    plus = h.diff().rolling(p).mean()
+    minus = l.diff().rolling(p).mean()
 
-    plus_di = 100 * (plus_dm.rolling(period).mean() / atr)
-    minus_di = 100 * (minus_dm.rolling(period).mean() / atr)
+    dx = (abs(plus - minus) / (plus + minus)) * 100
+    return dx.rolling(p).mean()
 
-    dx = (abs(plus_di - minus_di) / (plus_di + minus_di)) * 100
-    return dx.rolling(period).mean()
+# ================= TELEGRAM =================
+def send(signal):
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
+    text = (
+        "🚀 TRADE SIGNAL\n\n"
+        f"{signal['symbol']} | {signal['timeframe']}\n"
+        f"{signal['direction']} | Score: {signal['score']}\n"
+        f"RSI: {signal['rsi']:.2f}\n\n"
+        f"Entry: {signal['entry']}\nSL: {signal['sl']}\nTP: {signal['tp']}"
+    )
 
-# ======================
-# TELEGRAM
-# ======================
-def send_signal(signal):
-    try:
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    requests.post(url, data={"chat_id": CHAT_ID, "text": text})
 
-        text = (
-            "🚀 TRADE SIGNAL\n\n"
-            f"Symbol: {signal['symbol']}\n"
-            f"Timeframe: {signal['timeframe']}\n"
-            f"Direction: {signal['direction']}\n"
-            f"Score: {signal['score']}\n"
-            f"RSI: {signal['rsi']:.2f}\n\n"
-            f"Entry: {signal['entry']}\n"
-            f"SL: {signal['sl']}\n"
-            f"TP: {signal['tp']}"
-        )
+# ================= SYMBOLS (SAFE MODE) =================
+symbols = [
+    "BTC/USDT",
+    "ETH/USDT",
+    "SOL/USDT",
+    "XRP/USDT",
+    "DOGE/USDT",
+    "BNB/USDT",
+    "ADA/USDT",
+    "AVAX/USDT"
+]
 
-        requests.post(url, data={
-            "chat_id": CHAT_ID,
-            "text": text
-        })
-
-        print("SENT:", signal["symbol"], signal["direction"])
-
-    except Exception as e:
-        print("Telegram error:", e)
-
-
-# ======================
-# SIGNAL ENGINE
-# ======================
-def check_signal(df):
+# ================= SIGNAL =================
+def check(df):
     df["ema50"] = ema(df["close"], 50)
     df["ema200"] = ema(df["close"], 200)
     df["rsi"] = rsi(df["close"])
@@ -101,71 +78,52 @@ def check_signal(df):
     score = 0
     direction = None
 
-    # Trend
     if last["ema50"] > last["ema200"]:
         direction = "BUY"
         score += 1
-    elif last["ema50"] < last["ema200"]:
+    else:
         direction = "SELL"
         score += 1
 
-    # RSI filter
-    if direction == "BUY" and last["rsi"] < 70:
-        score += 1
-    if direction == "SELL" and last["rsi"] > 30:
+    if (direction == "BUY" and last["rsi"] < 70) or (direction == "SELL" and last["rsi"] > 30):
         score += 1
 
-    # ADX filter
-    if last["adx"] > 18:
+    if last["adx"] > 15:
         score += 1
 
     if score >= 3:
+        price = last["close"]
         return {
+            "symbol": df.attrs.get("symbol"),
+            "timeframe": df.attrs.get("tf"),
             "direction": direction,
             "score": score,
             "rsi": float(last["rsi"]),
-            "entry": float(last["close"]),
-            "sl": float(last["close"] * (0.98 if direction == "BUY" else 1.02)),
-            "tp": float(last["close"] * (1.03 if direction == "BUY" else 0.97)),
+            "entry": price,
+            "sl": price * (0.98 if direction == "BUY" else 1.02),
+            "tp": price * (1.03 if direction == "BUY" else 0.97),
         }
 
-    return None
-
-
-# ======================
-# MAIN LOOP
-# ======================
+# ================= MAIN =================
 def run():
-    markets = exchange.load_markets()
-
-    symbols = [
-        s for s in markets
-        if "/USDT" in s and markets[s]["active"]
-    ]
-
-    print(f"Scanning {len(symbols)} symbols...")
-
     for symbol in symbols:
         for tf in timeframes:
             try:
-                ohlcv = exchange.fetch_ohlcv(symbol, timeframe=tf, limit=200)
+                ohlcv = exchange.fetch_ohlcv(symbol, tf, limit=200)
 
-                df = pd.DataFrame(
-                    ohlcv,
-                    columns=["time", "open", "high", "low", "close", "volume"]
-                )
+                df = pd.DataFrame(ohlcv, columns=["t","o","h","l","c","v"])
+                df.rename(columns={"c": "close", "h": "high", "l": "low"}, inplace=True)
 
-                signal = check_signal(df)
+                df.attrs["symbol"] = symbol
+                df.attrs["tf"] = tf
 
-                if signal:
-                    signal["symbol"] = symbol
-                    signal["timeframe"] = tf
-                    send_signal(signal)
+                sig = check(df)
+                if sig:
+                    send(sig)
 
             except Exception as e:
-                print("Error:", symbol, tf, str(e))
-
+                print("ERR:", symbol, tf, e)
 
 if __name__ == "__main__":
     run()
-    print("FINISHED")
+    print("DONE")
