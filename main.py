@@ -1,7 +1,6 @@
 import os
 import requests
 
-# خواندن Secrets از GitHub
 BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
@@ -28,16 +27,12 @@ def send_signal(signal):
         }
 
         response = requests.post(url, data=payload)
-
-        print("TOKEN EXISTS:", bool(BOT_TOKEN))
-        print("CHAT EXISTS:", bool(CHAT_ID))
-        print("Telegram response:", response.text)
+        print(response.text)
 
     except Exception as e:
-        print("Telegram error:", str(e))
+        print(e)
 
 
-# تست ارسال پیام
 signal = {
     "symbol": "BTCUSDT",
     "direction": "BUY",
@@ -50,7 +45,5 @@ signal = {
 }
 
 send_signal(signal)
-send_signal(signal)
 
 print("FINISHED")
-exit()
