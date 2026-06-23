@@ -50,3 +50,7 @@ signal = {
 }
 
 send_signal(signal)
+send_signal(signal)
+
+print("FINISHED")
+exit()
