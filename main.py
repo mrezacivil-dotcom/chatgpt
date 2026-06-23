@@ -9,8 +9,11 @@ import requests
 BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-exchange = ccxt.binance({
-    "enableRateLimit": True
+exchange = ccxt.bybit({
+    "enableRateLimit": True,
+    "options": {
+        "defaultType": "spot"
+    }
 })
 
 timeframes = ["1h", "4h"]
@@ -36,9 +39,6 @@ def adx(df, period=14):
     low = df["low"]
     close = df["close"]
 
-    plus_dm = high.diff()
-    minus_dm = low.diff()
-
     tr = pd.concat([
         high - low,
         (high - close.shift()).abs(),
@@ -46,6 +46,9 @@ def adx(df, period=14):
     ], axis=1).max(axis=1)
 
     atr = tr.rolling(period).mean()
+
+    plus_dm = high.diff()
+    minus_dm = low.diff()
 
     plus_di = 100 * (plus_dm.rolling(period).mean() / atr)
     minus_di = 100 * (minus_dm.rolling(period).mean() / atr)
@@ -85,7 +88,7 @@ def send_signal(signal):
 
 
 # ======================
-# SIGNAL LOGIC
+# SIGNAL ENGINE
 # ======================
 def check_signal(df):
     df["ema50"] = ema(df["close"], 50)
@@ -100,11 +103,11 @@ def check_signal(df):
 
     # Trend
     if last["ema50"] > last["ema200"]:
-        score += 1
         direction = "BUY"
-    elif last["ema50"] < last["ema200"]:
         score += 1
+    elif last["ema50"] < last["ema200"]:
         direction = "SELL"
+        score += 1
 
     # RSI filter
     if direction == "BUY" and last["rsi"] < 70:
@@ -113,24 +116,24 @@ def check_signal(df):
         score += 1
 
     # ADX filter
-    if last["adx"] > 20:
+    if last["adx"] > 18:
         score += 1
 
     if score >= 3:
         return {
             "direction": direction,
             "score": score,
-            "rsi": last["rsi"],
-            "entry": last["close"],
-            "sl": last["close"] * (0.98 if direction == "BUY" else 1.02),
-            "tp": last["close"] * (1.03 if direction == "BUY" else 0.97),
+            "rsi": float(last["rsi"]),
+            "entry": float(last["close"]),
+            "sl": float(last["close"] * (0.98 if direction == "BUY" else 1.02)),
+            "tp": float(last["close"] * (1.03 if direction == "BUY" else 0.97)),
         }
 
     return None
 
 
 # ======================
-# MAIN
+# MAIN LOOP
 # ======================
 def run():
     markets = exchange.load_markets()
@@ -139,6 +142,8 @@ def run():
         s for s in markets
         if "/USDT" in s and markets[s]["active"]
     ]
+
+    print(f"Scanning {len(symbols)} symbols...")
 
     for symbol in symbols:
         for tf in timeframes:
@@ -155,11 +160,10 @@ def run():
                 if signal:
                     signal["symbol"] = symbol
                     signal["timeframe"] = tf
-
                     send_signal(signal)
 
             except Exception as e:
-                print("Error:", symbol, tf, e)
+                print("Error:", symbol, tf, str(e))
 
 
 if __name__ == "__main__":
