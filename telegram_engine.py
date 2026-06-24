@@ -1,32 +1,42 @@
 import requests
+import time
+from config import BOT_TOKEN, CHAT_ID
 
-BOT_TOKEN = "YOUR_TOKEN"
-CHAT_ID = "YOUR_CHAT_ID"
-
-URL = f"https://api.telegram.org/botYOUR_TOKEN/sendMessage"
+_last = 0
+COOLDOWN = 5
 
 
-def send_signal(signal):
+def send_telegram(signal):
 
-    text = f"""
-🚀 V62 SIGNAL
+    global _last
 
-{signal['symbol']} {signal['direction']}
+    if time.time() - _last < COOLDOWN:
+        return False
 
-Entry: {signal['entry']:.4f}
-SL: {signal['sl']:.4f}
-TP: {signal['tp']:.4f}
+    text = (
+        f"🚀 {signal.get('regime','V52')} SIGNAL\n\n"
+        f"{signal['symbol']} {signal['direction']}\n\n"
+        f"Entry: {signal['entry']:.4f}\n"
+        f"SL: {signal['sl']:.4f}\n"
+        f"TP: {signal['tp']:.4f}\n\n"
+        f"Score: {signal['score']:.2f}\n"
+        f"Conf: {signal['confidence']:.1f}%"
+    )
 
-Score: {signal['score']}
-Conf: {signal['confidence']}%
-"""
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
     try:
-        requests.post(URL, data={
+        r = requests.post(url, data={
             "chat_id": CHAT_ID,
             "text": text
-        })
-        print("📨 TG SENT OK")
+        }, timeout=10)
+
+        if r.ok:
+            _last = time.time()
+
+        print("📨 TG:", r.text)
+        return r.ok
 
     except Exception as e:
         print("TG ERROR:", e)
+        return False
