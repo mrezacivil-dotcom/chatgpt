@@ -25,7 +25,7 @@ def is_trade_locked(symbol):
 
     TRADE_LOCK[symbol] = now
     return False
-
+    print("🔁 LOOP RUNNING")
 
 def run():
     print("🚀 V64 SYSTEM STARTED")
@@ -84,3 +84,4 @@ def run():
 
 if __name__ == "__main__":
     run()
+print("🚀 BOT STARTED")
