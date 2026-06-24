@@ -3,7 +3,7 @@ import requests
 BOT_TOKEN = "YOUR_TOKEN"
 CHAT_ID = "YOUR_CHAT_ID"
 
-URL = f"https://api.telegram.org/bot8819076931:AAFTJn6zwoGHfnRe_LEnuoYwkS8GbGj2Fe4/sendMessage"
+URL = f"https://api.telegram.org/botYOUR_TOKEN/sendMessage"
 
 
 def send_signal(signal):
@@ -23,7 +23,7 @@ Conf: {signal['confidence']}%
 
     try:
         requests.post(URL, data={
-            "chat_id": 5039122077,
+            "chat_id": CHAT_ID,
             "text": text
         })
         print("📨 TG SENT OK")
