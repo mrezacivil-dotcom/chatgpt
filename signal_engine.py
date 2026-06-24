@@ -1,79 +1,78 @@
 import time
 import numpy as np
-
-from price_engine import get_klines
+from price_engine import get_ohlcv
 from ai_core import adaptive_score
-
+from config import MIN_SCORE, CACHE_SECONDS
 
 SYMBOLS = [
-    "BTCUSDT",
-    "ETHUSDT",
-    "BNBUSDT",
-    "SOLUSDT",
-    "XRPUSDT",
-    "ADAUSDT",
-    "DOGEUSDT",
-    "AVAXUSDT",
-    "DOTUSDT",
-    "LINKUSDT",
-    "SUIUSDT",
-    "WLDUSDT"
+    "BTCUSDT","ETHUSDT","BNBUSDT","SOLUSDT","XRPUSDT",
+    "ADAUSDT","DOGEUSDT","AVAXUSDT","DOTUSDT","LINKUSDT",
+    "SUIUSDT","WLDUSDT","TRXUSDT","LTCUSDT","ATOMUSDT",
+    "NEARUSDT","ARBUSDT","OPUSDT","APTUSDT","FILUSDT",
+    "INJUSDT","ICPUSDT","ETCUSDT","AAVEUSDT","RUNEUSDT",
+    "GALAUSDT","SEIUSDT","TIAUSDT","HBARUSDT","MATICUSDT"
 ]
 
-
-CACHE_SECONDS = 5
-COOLDOWN_SECONDS = 45
-
 _last_scan = 0
-last_signal_time = {}
 
 
-# =========================
-# EMA
-# =========================
 def ema(values, period):
-
-    values = np.array(values)
-
     if len(values) < period:
         return None
 
+    values = np.array(values)
     k = 2 / (period + 1)
-    e = values[0]
 
+    e = values[0]
     for v in values:
         e = v * k + e * (1 - k)
 
     return e
 
 
-# =========================
-# VOLATILITY
-# =========================
-def volatility(closes):
+def rsi(closes, period=14):
+    if len(closes) < period + 1:
+        return 50
 
-    return np.std(closes[-50:]) / closes[-1]
+    deltas = np.diff(closes)
+    gains = np.where(deltas > 0, deltas, 0)
+    losses = np.where(deltas < 0, -deltas, 0)
 
+    avg_gain = np.mean(gains[-period:])
+    avg_loss = np.mean(losses[-period:])
 
-# =========================
-# COOLDOWN
-# =========================
-def cooldown_ok(symbol):
+    if avg_loss == 0:
+        return 100
 
-    now = time.time()
-
-    if symbol in last_signal_time:
-        if now - last_signal_time[symbol] < COOLDOWN_SECONDS:
-            return False
-
-    return True
+    rs = avg_gain / avg_loss
+    return 100 - (100 / (1 + rs))
 
 
-# =========================
-# MAIN
-# =========================
+def atr(high, low, close, period=14):
+    if len(close) < period + 2:
+        return 0
+
+    trs = []
+    for i in range(1, len(close)):
+        tr = max(
+            high[i] - low[i],
+            abs(high[i] - close[i - 1]),
+            abs(low[i] - close[i - 1])
+        )
+        trs.append(tr)
+
+    return np.mean(trs[-period:])
+
+
+def volume_spike(volume):
+    if len(volume) < 20:
+        return 1
+
+    avg = np.mean(volume[-20:])
+    return volume[-1] / avg if avg > 0 else 1
+
+
 def get_signals():
-
     global _last_scan
 
     if time.time() - _last_scan < CACHE_SECONDS:
@@ -85,73 +84,61 @@ def get_signals():
 
     for symbol in SYMBOLS:
 
-        closes = get_klines(symbol)
+        data = get_ohlcv(symbol)
+
+        closes = data["close"]
+        highs = data["high"]
+        lows = data["low"]
+        volume = data["volume"]
 
         if len(closes) < 200:
             continue
 
-        if not cooldown_ok(symbol):
-            continue
-
         price = closes[-1]
 
-        vol = volatility(closes)
-
-        if vol < 0.0002:
-            continue
-if vol < MIN_VOL:
-    continue
-if vol < MIN_VOL:
-    continue
-
-trend_strength = abs(ema50 - ema200) / price
-
-if trend_strength < MIN_TREND:
-    continue
-   if score < MIN_SCORE:
-    continue
-   confidence = min(
-    95,
-    round(
-        50 +
-        trend_strength * 5000 +
-        vol * 1000,
-        1
-    )
-)    
-trend_strength = abs(ema50 - ema200) / price
-
-if trend_strength < MIN_TREND:
-    continue
         ema50 = ema(closes[-50:], 50)
         ema200 = ema(closes[-200:], 200)
 
         if ema50 is None or ema200 is None:
             continue
 
-        # LONG / SHORT
-        direction = "BUY" if ema50 > ema200 else "SELL"
+        trend_up = ema50 > ema200
 
-        base_score = 2.2
+        r = rsi(closes)
+        a = atr(highs, lows, closes)
+        v = volume_spike(volume)
 
-        if abs(ema50 - ema200) / price > 0.002:
+        if v < 0.8:
+            continue
+
+        if trend_up and 55 < r < 75:
+            direction = "BUY"
+        elif not trend_up and 25 < r < 45:
+            direction = "SELL"
+        else:
+            continue
+
+        base_score = 2.5
+
+        if abs(ema50 - ema200) / price > 0.003:
             base_score += 0.3
+
+        if v > 1.5:
+            base_score += 0.2
 
         score = adaptive_score(symbol, base_score)
 
-        if score < 2.0:
+        if score < MIN_SCORE:
             continue
 
-        atr = np.mean(np.abs(np.diff(closes[-14:])))
-
         if direction == "BUY":
-            sl = price - atr * 1.5
-            tp = price + atr * 3
+            sl = price - a * 1.5
+            tp = price + a * 3
         else:
-            sl = price + atr * 1.5
-            tp = price - atr * 3
+            sl = price + a * 1.5
+            tp = price - a * 3
 
-        confidence = min(92, 55 + score * 12)
+        confidence = min(92, 60 + score * 10)
 
         signals.append({
             "symbol": symbol,
@@ -161,9 +148,7 @@ if trend_strength < MIN_TREND:
             "tp": float(tp),
             "score": round(score, 2),
             "confidence": round(confidence, 1),
-            "regime": "V64_SMART_BRAIN"
+            "regime": "V64_STABLE"
         })
-
-        last_signal_time[symbol] = time.time()
 
     return signals
