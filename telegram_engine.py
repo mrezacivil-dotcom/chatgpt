@@ -9,8 +9,8 @@ def send_signal(signal):
 
     if not BOT_TOKEN or not CHAT_ID:
         print("❌ Missing Telegram credentials")
-        print("BOT_TOKEN:", BOT_TOKEN)
-        print("CHAT_ID:", CHAT_ID)
+        print("BOT_TOKEN:", 8819076931:AAFTJn6zwoGHfnRe_LEnuoYwkS8GbGj2Fe4)
+        print("CHAT_ID:", 5039122077)
         return
 
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
