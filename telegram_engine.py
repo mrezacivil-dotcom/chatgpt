@@ -1,12 +1,14 @@
-import requests
 import os
+import requests
 
 BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-URL = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
 def send_signal(signal):
+
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+
     text = f"""
 🚀 SIGNAL
 
@@ -20,7 +22,19 @@ Score: {signal['score']}
 Confidence: {signal['confidence']}
 """
 
-    requests.post(URL, data={
-        "chat_id": CHAT_ID,
-        "text": text
-    })
+    try:
+
+        r = requests.post(
+            url,
+            data={
+                "chat_id": CHAT_ID,
+                "text": text
+            },
+            timeout=20
+        )
+
+        print("STATUS:", r.status_code)
+        print("RESPONSE:", r.text)
+
+    except Exception as e:
+        print("TELEGRAM ERROR:", str(e))
