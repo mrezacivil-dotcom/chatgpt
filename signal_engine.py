@@ -99,7 +99,30 @@ def get_signals():
 
         if vol < 0.0002:
             continue
+if vol < MIN_VOL:
+    continue
+if vol < MIN_VOL:
+    continue
 
+trend_strength = abs(ema50 - ema200) / price
+
+if trend_strength < MIN_TREND:
+    continue
+   if score < MIN_SCORE:
+    continue
+   confidence = min(
+    95,
+    round(
+        50 +
+        trend_strength * 5000 +
+        vol * 1000,
+        1
+    )
+)    
+trend_strength = abs(ema50 - ema200) / price
+
+if trend_strength < MIN_TREND:
+    continue
         ema50 = ema(closes[-50:], 50)
         ema200 = ema(closes[-200:], 200)
 
