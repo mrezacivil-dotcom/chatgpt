@@ -1,31 +1,38 @@
 import time
 import numpy as np
+
 from price_engine import get_klines
 from ai_core import adaptive_score
 
+
 SYMBOLS = [
-    "BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT","XRPUSDT",
-    "ADAUSDT","DOGEUSDT","AVAXUSDT","DOTUSDT","LINKUSDT"
+    "BTCUSDT",
+    "ETHUSDT",
+    "BNBUSDT",
+    "SOLUSDT",
+    "XRPUSDT",
+    "ADAUSDT",
+    "DOGEUSDT",
+    "AVAXUSDT",
+    "DOTUSDT",
+    "LINKUSDT",
+    "SUIUSDT",
+    "WLDUSDT"
 ]
 
-_last_time = 0
-
-last_signal_time = {}
-last_trend = {}
 
 CACHE_SECONDS = 5
-COOLDOWN_SECONDS = 30
+COOLDOWN_SECONDS = 45
+
+_last_scan = 0
+last_signal_time = {}
 
 
 # =========================
-# INDICATORS
+# EMA
 # =========================
-def volatility(closes):
-    closes = np.array(closes[-50:])
-    return np.std(closes) / closes[-1]
-
-
 def ema(values, period):
+
     values = np.array(values)
 
     if len(values) < period:
@@ -41,56 +48,56 @@ def ema(values, period):
 
 
 # =========================
-# TREND FILTER (SOFT)
+# VOLATILITY
 # =========================
-def trend_stable(symbol, direction):
-    if symbol in last_trend:
-        if last_trend[symbol] == direction:
-            return True
+def volatility(closes):
 
-    last_trend[symbol] = direction
-    return True
+    return np.std(closes[-50:]) / closes[-1]
 
 
 # =========================
 # COOLDOWN
 # =========================
 def cooldown_ok(symbol):
+
     now = time.time()
 
     if symbol in last_signal_time:
         if now - last_signal_time[symbol] < COOLDOWN_SECONDS:
             return False
 
-    last_signal_time[symbol] = now
     return True
 
 
 # =========================
-# MAIN ENGINE
+# MAIN
 # =========================
 def get_signals():
-    global _last_time
 
-    if time.time() - _last_time < CACHE_SECONDS:
+    global _last_scan
+
+    if time.time() - _last_scan < CACHE_SECONDS:
         return []
 
-    _last_time = time.time()
+    _last_scan = time.time()
 
     signals = []
 
-    for s in SYMBOLS:
+    for symbol in SYMBOLS:
 
-        closes = get_klines(s)
+        closes = get_klines(symbol)
 
-        if not closes or len(closes) < 200:
+        if len(closes) < 200:
+            continue
+
+        if not cooldown_ok(symbol):
             continue
 
         price = closes[-1]
 
         vol = volatility(closes)
 
-        if vol < 0.0001:
+        if vol < 0.0002:
             continue
 
         ema50 = ema(closes[-50:], 50)
@@ -99,41 +106,41 @@ def get_signals():
         if ema50 is None or ema200 is None:
             continue
 
-        trend = "BUY" if ema50 > ema200 else "SELL"
+        # LONG / SHORT
+        direction = "BUY" if ema50 > ema200 else "SELL"
 
-        if not cooldown_ok(s):
-            continue
-
-        base = 2.0
+        base_score = 2.2
 
         if abs(ema50 - ema200) / price > 0.002:
-            base += 0.5
+            base_score += 0.3
 
-        score = adaptive_score(s, base)
+        score = adaptive_score(symbol, base_score)
 
-        if score < 1.7:
+        if score < 2.0:
             continue
 
         atr = np.mean(np.abs(np.diff(closes[-14:])))
 
-        if trend == "BUY":
+        if direction == "BUY":
             sl = price - atr * 1.5
             tp = price + atr * 3
         else:
             sl = price + atr * 1.5
             tp = price - atr * 3
 
-        confidence = min(90, 50 + score * 15)
+        confidence = min(92, 55 + score * 12)
 
         signals.append({
-            "symbol": s,
-            "direction": trend,
+            "symbol": symbol,
+            "direction": direction,
             "entry": float(price),
             "sl": float(sl),
             "tp": float(tp),
             "score": round(score, 2),
             "confidence": round(confidence, 1),
-            "regime": "V63_FIXED"
+            "regime": "V64_SMART_BRAIN"
         })
+
+        last_signal_time[symbol] = time.time()
 
     return signals
