@@ -5,8 +5,9 @@ BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
 def send_signal(signal):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
+```
 text = (
     "🚀 TRADE SIGNAL\n\n"
     f"Symbol: {signal['symbol']}\n"
@@ -21,6 +22,7 @@ requests.post(
         "text": text
     }
 )
+```
 
 signal = {
 "symbol": "BTCUSDT",
