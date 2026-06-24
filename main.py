@@ -1,85 +1,35 @@
 import time
-
-print("🚀 FILE LOADED")
-
 from signal_engine import get_signals
-from execution_engine import open_position, update_positions, get_positions, has_position
-from price_engine import get_price
-from telegram_engine import send_signal
+from execution_engine import open_position
 from risk_engine import trading_allowed
-
+from telegram_engine import send_signal
 
 TRADE_LOCK = {}
 LOCK_SECONDS = 60
 
-
-def is_trade_locked(symbol):
+def is_locked(symbol):
     now = time.time()
-
-    if symbol in TRADE_LOCK:
-        if now - TRADE_LOCK[symbol] < LOCK_SECONDS:
-            return True
-
+    if symbol in TRADE_LOCK and now - TRADE_LOCK[symbol] < LOCK_SECONDS:
+        return True
     TRADE_LOCK[symbol] = now
     return False
 
-
 def run():
-    print("🚀 V64 SYSTEM STARTED")
-
+    print("🚀 BOT STARTED")
     while True:
-        try:
-            print("🔁 LOOP RUNNING")
+        signals = get_signals()
 
-            update_positions(get_price)
-
-            if not trading_allowed():
-                print("⚠️ TRADING DISABLED")
-                time.sleep(5)
+        for s in signals:
+            if is_locked(s["symbol"]):
                 continue
 
-            signals = get_signals()
-
-            if not signals:
-                print("📡 NO SIGNAL")
-                time.sleep(2)
+            if not trading_allowed(s):
                 continue
 
-            best = max(signals, key=lambda x: x["score"])
-            print("🔥 SIGNAL:", best)
+            open_position(s)
+            send_signal(s)
 
-            symbol = best.get("symbol")
-
-            if not symbol:
-                print("⚠️ INVALID SIGNAL")
-                time.sleep(2)
-                continue
-
-            if is_trade_locked(symbol):
-                print("⛔ TRADE LOCKED")
-                time.sleep(2)
-                continue
-
-            if has_position(symbol):
-                print("⛔ POSITION EXISTS")
-                time.sleep(2)
-                continue
-
-            pos = open_position(best)
-
-            if pos:
-                send_signal(best)
-
-            print("📊 POSITIONS:", len(get_positions()))
-
-            time.sleep(2)
-
-        except Exception as e:
-            print("❌ ERROR:", repr(e))
-            time.sleep(3)
-
+        time.sleep(5)
 
 if __name__ == "__main__":
     run()
-
-print("🚀 BOT STARTED (AFTER MAIN)")
