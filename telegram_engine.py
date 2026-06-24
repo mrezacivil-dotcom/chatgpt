@@ -1,48 +1,32 @@
-import os
 import requests
 
-BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
+BOT_TOKEN = "YOUR_TOKEN"
+CHAT_ID = "YOUR_CHAT_ID"
+
+URL = f"https://api.telegram.org/bot8819076931:AAFTJn6zwoGHfnRe_LEnuoYwkS8GbGj2Fe4/sendMessage"
 
 
 def send_signal(signal):
 
-    if not BOT_TOKEN or not CHAT_ID:
-        print("❌ Missing Telegram credentials")
-        print("BOT_TOKEN:", 8819076931:AAFTJn6zwoGHfnRe_LEnuoYwkS8GbGj2Fe4)
-        print("CHAT_ID:", 5039122077)
-        return
-
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-
     text = f"""
-🚀 TRADE SIGNAL
+🚀 V62 SIGNAL
 
-Symbol: {signal.get('symbol', 'N/A')}
-Direction: {signal.get('direction', 'N/A')}
-Score: {signal.get('score', 'N/A')}
-Confidence: {signal.get('confidence', 'N/A')}
+{signal['symbol']} {signal['direction']}
 
-Entry: {signal.get('entry', 'N/A')}
-SL: {signal.get('sl', 'N/A')}
-TP: {signal.get('tp', 'N/A')}
+Entry: {signal['entry']:.4f}
+SL: {signal['sl']:.4f}
+TP: {signal['tp']:.4f}
 
-Regime: {signal.get('regime', 'N/A')}
+Score: {signal['score']}
+Conf: {signal['confidence']}%
 """
 
-    payload = {
-        "chat_id": CHAT_ID,
-        "text": text
-    }
-
     try:
-        response = requests.post(url, data=payload)
-        data = response.json()
-
-        if data.get("ok"):
-            print("✅ Telegram message sent successfully")
-        else:
-            print("❌ Telegram API error:", data)
+        requests.post(URL, data={
+            "chat_id": 5039122077,
+            "text": text
+        })
+        print("📨 TG SENT OK")
 
     except Exception as e:
-        print("❌ Request failed:", str(e))
+        print("TG ERROR:", e)
