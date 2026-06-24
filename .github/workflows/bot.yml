@@ -24,17 +24,13 @@ jobs:
         run: |
           pip install numpy pandas requests aiohttp ccxt python-binance ta pyTelegramBotAPI dateparser cryptography
 
-      # 🔍 Debug فقط برای اطمینان از Secrets
+      # 🔍 Debug env (درست و مطمئن)
       - name: Debug environment variables
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
         run: |
-          python -c "
-import os
-print('TOKEN OK:', bool(os.getenv('TELEGRAM_TOKEN')))
-print('CHAT OK:', bool(os.getenv('CHAT_ID')))
-"
+          python -c "import os; print('TOKEN OK:', bool(os.getenv('TELEGRAM_TOKEN'))); print('CHAT OK:', bool(os.getenv('CHAT_ID')))"
 
       # 🚀 Run bot
       - name: Run bot
