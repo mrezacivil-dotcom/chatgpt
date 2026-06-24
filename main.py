@@ -1,12 +1,9 @@
 import time
 
+print("🚀 FILE LOADED")
+
 from signal_engine import get_signals
-from execution_engine import (
-    open_position,
-    update_positions,
-    get_positions,
-    has_position
-)
+from execution_engine import open_position, update_positions, get_positions, has_position
 from price_engine import get_price
 from telegram_engine import send_signal
 from risk_engine import trading_allowed
@@ -25,22 +22,22 @@ def is_trade_locked(symbol):
 
     TRADE_LOCK[symbol] = now
     return False
-    print("🔁 LOOP RUNNING")
+
 
 def run():
     print("🚀 V64 SYSTEM STARTED")
 
     while True:
         try:
-            # آپدیت پوزیشن‌ها
+            print("🔁 LOOP RUNNING")
+
             update_positions(get_price)
 
-            # چک ریسک
             if not trading_allowed():
+                print("⚠️ TRADING DISABLED")
                 time.sleep(5)
                 continue
 
-            # گرفتن سیگنال
             signals = get_signals()
 
             if not signals:
@@ -54,7 +51,7 @@ def run():
             symbol = best.get("symbol")
 
             if not symbol:
-                print("⚠️ INVALID SIGNAL (NO SYMBOL)")
+                print("⚠️ INVALID SIGNAL")
                 time.sleep(2)
                 continue
 
@@ -78,10 +75,11 @@ def run():
             time.sleep(2)
 
         except Exception as e:
-            print("❌ ERROR:", str(e))
+            print("❌ ERROR:", repr(e))
             time.sleep(3)
 
 
 if __name__ == "__main__":
     run()
-print("🚀 BOT STARTED")
+
+print("🚀 BOT STARTED (AFTER MAIN)")
