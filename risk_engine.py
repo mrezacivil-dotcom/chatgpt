@@ -1,12 +1,11 @@
 account = {
     "balance": 1000,
     "equity": 1000,
-    "loss_streak": 0,
-    "max_drawdown": 0
+    "loss_streak": 0
 }
 
 
-def trading_allowed():
+def trading_allowed(signal=None):
 
     drawdown = (
         account["balance"] -
