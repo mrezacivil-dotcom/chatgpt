@@ -1,3 +1,2 @@
-requests
-numpy
-pandas
+requests>=2.28.0
+numpy>=1.24.0
