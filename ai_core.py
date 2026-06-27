@@ -4,7 +4,7 @@ from collections import defaultdict
 
 MEMORY_FILE = "ai_memory.json"
 
-# بارگذاری حافظه از فایل در صورت وجود
+# بارگذاری حافظه از فایل
 if os.path.exists(MEMORY_FILE):
     with open(MEMORY_FILE, "r") as f:
         loaded_mem = json.load(f)
@@ -21,7 +21,7 @@ def update_memory(symbol, result):
         memory[symbol]["win"] += 1
     else:
         memory[symbol]["loss"] += 1
-    save_memory() # ذخیره تغییرات روی هارد دیسک
+    save_memory() # هر تغییر را ذخیره می‌کند
 
 def winrate(symbol):
     total = memory[symbol]["win"] + memory[symbol]["loss"]
@@ -31,16 +31,12 @@ def winrate(symbol):
 
 def adaptive_score(symbol, base):
     wr = winrate(symbol)
-    if wr > 0.65:
-        return base * 1.2
-    if wr < 0.40:
-        return base * 0.8
+    if wr > 0.65: return base * 1.2
+    if wr < 0.40: return base * 0.8
     return base
 
 def adaptive_confidence(symbol, confidence):
     wr = winrate(symbol)
-    if wr > 0.65:
-        confidence += 5
-    elif wr < 0.40:
-        confidence -= 5
+    if wr > 0.65: confidence += 5
+    elif wr < 0.40: confidence -= 5
     return max(50, min(95, confidence))
