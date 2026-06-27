@@ -1,20 +1,40 @@
 import os
 
-# تنظیمات ترید
+# ============ TRADING ============
 LIVE_TRADING = False
 MAX_POSITIONS = 3
 SLEEP_TIME = 5
 MIN_SCORE = 2.0
 CACHE_SECONDS = 5
+COOLDOWN_SECONDS = 60
 
+# ============ RISK ============
+MAX_DRAWDOWN = 0.15
+MAX_LOSS_STREAK = 5
+DEFAULT_BALANCE = 1000
+MAX_RISK_PER_TRADE = 0.03
+MIN_RISK_PER_TRADE = 0.01
+
+# ============ STRATEGY ============
+EMA_FAST = 50
+EMA_SLOW = 200
+ATR_PERIOD = 14
+VOLATILITY_PERIOD = 50
+MIN_VOLATILITY = 0.0002
+ATR_SL_MULTIPLIER = 1.5
+ATR_TP_MULTIPLIER = 3.0
+
+# ============ FILTERS ============
 ENABLE_FUNDING = True
-ENABLE_NEWS_FILTER = False
+ENABLE_FUNDAMENTAL = True
 
-# توکن‌ها را از متغیرهای محیطی (Environment Variables) می‌خوانیم
-# اگر روی سیستم لوکال تست می‌کنید، می‌توانید مستقیم اینجا بنویسید اما برای گیت‌هاب این روش امن است.
-BOT_TOKEN = os.getenv("TELEGRAM_TOKEN", "8819076931:AAGgdHQWlxlZ1f_zQ3LIXIcjhW8_Z0nz8ks")
-CHAT_ID = os.getenv("CHAT_ID", "5039122077")
+# ============ TELEGRAM ============
+BOT_TOKEN = os.getenv("TELEGRAM_TOKEN", "")
+CHAT_ID = os.getenv("CHAT_ID", "")
 
-# تنظیمات صرافی (در صورت لایو ترید)
-BINANCE_API_KEY = os.getenv("BINANCE_API_KEY", "")
-BINANCE_API_SECRET = os.getenv("BINANCE_API_SECRET", "")
+# ============ SYMBOLS ============
+SYMBOLS = [
+    "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT",
+    "XRPUSDT", "ADAUSDT", "DOGEUSDT", "AVAXUSDT",
+    "DOTUSDT", "LINKUSDT", "SUIUSDT", "WLDUSDT"
+]
