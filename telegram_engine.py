@@ -1,30 +1,76 @@
 import requests
 from config import BOT_TOKEN, CHAT_ID
 
-URL = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
-def format_price(price):
-    """فرمت داینامیک قیمت برای ارزهای اعشاری زیاد مثل DOGE"""
-    if price >= 1000: return f"{price:.2f}"
-    if price >= 1: return f"{price:.4f}"
-    if price >= 0.01: return f"{price:.6f}"
-    return f"{price:.8f}"
+def get_url():
+    """ساخت URL تلگرام"""
+    if not BOT_TOKEN:
+        print("⚠️ TELEGRAM TOKEN NOT SET")
+        return None
+    return f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+
 
 def send_signal(signal):
+    """ارسال سیگنال به تلگرام"""
+
+    url = get_url()
+    if not url or not CHAT_ID:
+        print("⚠️ TELEGRAM NOT CONFIGURED")
+        return False
+
+    direction_emoji = "🟢" if signal["direction"] == "BUY" else "🔴"
+    reasons = "\n".join(f"  • {r}" for r in signal.get("reasons", []))
+
     text = f"""
-🚀 V65 SMART SIGNAL
+{direction_emoji} V65 PRO SIGNAL
 
-🪙 {signal['symbol']} | {signal['direction']}
+📊 {signal['symbol']} — {signal['direction']}
 
-🎯 Entry: {format_price(signal['entry'])}
-🛑 SL: {format_price(signal['sl'])}
-✅ TP: {format_price(signal['tp'])}
+💰 Entry: {signal['entry']:.4f}
+🛑 SL: {signal['sl']:.4f}
+🎯 TP: {signal['tp']:.4f}
 
-📊 Score: {signal['score']}
-🧠 Conf: {signal['confidence']}%
+📈 Score: {signal['score']}
+🧠 Confidence: {signal['confidence']}%
+📉 RSI: {signal.get('rsi', 'N/A')}
+
+📝 Reasons:
+{reasons}
+
+⚙️ {signal.get('regime', 'V65')}
 """
+
     try:
-        requests.post(URL, data={"chat_id": CHAT_ID, "text": text}, timeout=5)
-        print("📨 TG SENT OK")
+        response = requests.post(url, data={
+            "chat_id": CHAT_ID,
+            "text": text,
+            "parse_mode": "HTML"
+        }, timeout=10)
+
+        if response.status_code == 200:
+            print("📨 TELEGRAM SENT ✅")
+            return True
+        else:
+            print(f"⚠️ TELEGRAM ERROR: {response.status_code}")
+            return False
+
     except Exception as e:
-        print("TG ERROR:", e)
+        print(f"❌ TELEGRAM ERROR: {e}")
+        return False
+
+
+def send_alert(message):
+    """ارسال هشدار به تلگرام"""
+
+    url = get_url()
+    if not url or not CHAT_ID:
+        return False
+
+    try:
+        requests.post(url, data={
+            "chat_id": CHAT_ID,
+            "text": f"⚠️ ALERT: {message}"
+        }, timeout=10)
+        return True
+    except:
+        return False
