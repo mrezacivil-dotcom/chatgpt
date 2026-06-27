@@ -1,91 +1,70 @@
 import time
-from telegram_engine import send_signal
-
-# اگر این ماژول‌ها وجود دارند
 from signal_engine import get_signals
-from execution_engine import open_position
+from execution_engine import open_position, update_positions, get_positions, has_position
+from price_engine import get_price
+from telegram_engine import send_signal
 from risk_engine import trading_allowed
 
 TRADE_LOCK = {}
 LOCK_SECONDS = 60
 
+def set_trade_lock(symbol):
+    """قفل می‌کند بعد از ترید"""
+    TRADE_LOCK[symbol] = time.time()
 
-def is_locked(symbol):
-    now = time.time()
-
+def is_trade_locked(symbol):
+    """چک می‌کند اگر قفل هنوز پابرجاست"""
     if symbol in TRADE_LOCK:
-        if now - TRADE_LOCK[symbol] < LOCK_SECONDS:
+        if time.time() - TRADE_LOCK[symbol] < LOCK_SECONDS:
             return True
-
-    TRADE_LOCK[symbol] = now
+        else:
+            del TRADE_LOCK[symbol] # قفل منقضی شده را پاک می‌کند
     return False
 
-
-def test_telegram():
-    print("TESTING TELEGRAM...")
-
-    test_signal = {
-        "symbol": "BTCUSDT",
-        "direction": "LONG",
-        "entry": 100000,
-        "sl": 99000,
-        "tp": 102000,
-        "score": 10,
-        "confidence": "100%"
-    }
-
-    send_signal(test_signal)
-
-    print("TEST MESSAGE SENT")
-
-
 def run():
-
-    print("🚀 BOT STARTED")
-
-    # تست تلگرام هنگام استارت
-    test_telegram()
-
+    print("🚀 V65 SYSTEM STARTED")
     while True:
-
         try:
+            print("🔁 LOOP RUNNING")
+            update_positions(get_price)
 
-            print("SCAN STARTED")
+            if not trading_allowed():
+                print("⚠️ TRADING DISABLED (Risk Limits)")
+                time.sleep(5)
+                continue
 
             signals = get_signals()
+            if not signals:
+                print("📡 NO SIGNAL")
+                time.sleep(2)
+                continue
 
-            print(f"SIGNALS FOUND: {len(signals)}")
-            print(signals)
+            best = max(signals, key=lambda x: x["score"])
+            print("🔥 BEST SIGNAL:", best['symbol'], best['direction'])
 
-            for s in signals:
+            symbol = best.get("symbol")
 
-                symbol = s.get("symbol", "UNKNOWN")
+            if is_trade_locked(symbol):
+                print(f"⛔ TRADE LOCKED for {symbol}")
+                time.sleep(2)
+                continue
 
-                print(f"CHECKING {symbol}")
+            if has_position(symbol):
+                print(f"⛔ POSITION EXISTS for {symbol}")
+                time.sleep(2)
+                continue
 
-                if is_locked(symbol):
-                    print(f"LOCKED: {symbol}")
-                    continue
+            pos = open_position(best)
+            if pos:
+                send_signal(best)
+                set_trade_lock(symbol) # قفل کردن ارز پس از ترید موفق
 
-                if not trading_allowed(s):
-                    print(f"RISK FILTER BLOCKED: {symbol}")
-                    continue
-
-                print(f"OPENING POSITION: {symbol}")
-
-                open_position(s)
-
-                print(f"SENDING TELEGRAM: {symbol}")
-
-                send_signal(s)
-
-                print(f"DONE: {symbol}")
+            print("📊 OPEN POSITIONS:", len(get_positions()))
+            time.sleep(2)
 
         except Exception as e:
-            print("ERROR:", str(e))
-
-        time.sleep(5)
-
+            print("❌ SYSTEM ERROR:", repr(e))
+            time.sleep(3)
 
 if __name__ == "__main__":
     run()
