@@ -1,144 +1,112 @@
 import time
 import numpy as np
-from price_engine import get_ohlcv
+from price_engine import get_klines
 from ai_core import adaptive_score
-from config import MIN_SCORE, CACHE_SECONDS
+from funding_engine import get_funding_bias, funding_filter
+from fundamental_engine import fundamental_filter
+from config import ENABLE_FUNDING, MIN_SCORE
 
 SYMBOLS = [
-    "BTCUSDT","ETHUSDT","BNBUSDT","SOLUSDT","XRPUSDT",
-    "ADAUSDT","DOGEUSDT","AVAXUSDT","DOTUSDT","LINKUSDT",
-    "SUIUSDT","WLDUSDT","TRXUSDT","LTCUSDT","ATOMUSDT",
-    "NEARUSDT","ARBUSDT","OPUSDT","APTUSDT","FILUSDT",
-    "INJUSDT","ICPUSDT","ETCUSDT","AAVEUSDT","RUNEUSDT",
-    "GALAUSDT","SEIUSDT","TIAUSDT","HBARUSDT","MATICUSDT"
+    "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT",
+    "DOGEUSDT", "AVAXUSDT", "DOTUSDT", "LINKUSDT", "SUIUSDT", "WLDUSDT"
 ]
 
-_last_scan = 0
+CACHE_SECONDS = 5
+COOLDOWN_SECONDS = 45
 
+_last_scan = 0
+last_signal_time = {}
 
 def ema(values, period):
     if len(values) < period:
         return None
+    weights = np.exp(np.linspace(-1., 0., period))
+    weights /= weights.sum()
+    return np.convolve(values, weights, mode='valid')[-1]
 
-    values = np.array(values)
-    k = 2 / (period + 1)
-
-    e = values[0]
-    for v in values:
-        e = v * k + e * (1 - k)
-
-    return e
-
-
-def rsi(closes, period=14):
-    if len(closes) < period + 1:
-        return 50
-
-    deltas = np.diff(closes)
-    gains = np.where(deltas > 0, deltas, 0)
-    losses = np.where(deltas < 0, -deltas, 0)
-
-    avg_gain = np.mean(gains[-period:])
-    avg_loss = np.mean(losses[-period:])
-
-    if avg_loss == 0:
-        return 100
-
-    rs = avg_gain / avg_loss
-    return 100 - (100 / (1 + rs))
-
-
-def atr(high, low, close, period=14):
-    if len(close) < period + 2:
-        return 0
-
-    trs = []
-    for i in range(1, len(close)):
+def true_atr(highs, lows, closes, period=14):
+    if len(highs) < period + 1:
+        return None
+    tr_list = []
+    for i in range(-period, 0):
         tr = max(
-            high[i] - low[i],
-            abs(high[i] - close[i - 1]),
-            abs(low[i] - close[i - 1])
+            highs[i] - lows[i],
+            abs(highs[i] - closes[i-1]),
+            abs(lows[i] - closes[i-1])
         )
-        trs.append(tr)
+        tr_list.append(tr)
+    return np.mean(tr_list)
 
-    return np.mean(trs[-period:])
-
-
-def volume_spike(volume):
-    if len(volume) < 20:
-        return 1
-
-    avg = np.mean(volume[-20:])
-    return volume[-1] / avg if avg > 0 else 1
-
+def cooldown_ok(symbol):
+    now = time.time()
+    if symbol in last_signal_time:
+        if now - last_signal_time[symbol] < COOLDOWN_SECONDS:
+            return False
+    return True
 
 def get_signals():
     global _last_scan
-
     if time.time() - _last_scan < CACHE_SECONDS:
         return []
-
     _last_scan = time.time()
 
     signals = []
 
     for symbol in SYMBOLS:
-
-        data = get_ohlcv(symbol)
-
-        closes = data["close"]
-        highs = data["high"]
-        lows = data["low"]
-        volume = data["volume"]
+        data = get_klines(symbol)
+        closes = data["closes"]
+        highs = data["highs"]
+        lows = data["lows"]
 
         if len(closes) < 200:
             continue
+        if not cooldown_ok(symbol):
+            continue
 
         price = closes[-1]
+        if price <= 0:
+            continue
 
-        ema50 = ema(closes[-50:], 50)
-        ema200 = ema(closes[-200:], 200)
+        # محاسبه EMA ها
+        ema50 = ema(closes, 50)
+        ema200 = ema(closes, 200)
 
         if ema50 is None or ema200 is None:
             continue
 
-        trend_up = ema50 > ema200
+        direction = "BUY" if ema50 > ema200 else "SELL"
 
-        r = rsi(closes)
-        a = atr(highs, lows, closes)
-        v = volume_spike(volume)
+        # فیلتر فاندینگ ریت (اگر فعال باشد)
+        if ENABLE_FUNDING:
+            bias = get_funding_bias(symbol)
+            if not funding_filter(direction, bias):
+                continue
 
-        if v < 0.8:
+        # فیلتر فاندمنتال (Placeholder)
+        if not fundamental_filter(symbol, direction):
             continue
 
-        if trend_up and 55 < r < 75:
-            direction = "BUY"
-        elif not trend_up and 25 < r < 45:
-            direction = "SELL"
-        else:
-            continue
-
-        base_score = 2.5
-
-        if abs(ema50 - ema200) / price > 0.003:
+        base_score = 2.2
+        if abs(ema50 - ema200) / price > 0.002:
             base_score += 0.3
 
-        if v > 1.5:
-            base_score += 0.2
-
         score = adaptive_score(symbol, base_score)
-
         if score < MIN_SCORE:
             continue
 
-        if direction == "BUY":
-            sl = price - a * 1.5
-            tp = price + a * 3
-        else:
-            sl = price + a * 1.5
-            tp = price - a * 3
+        # محاسبه دقیق ATR برای حد ضرر و سود
+        atr = true_atr(highs, lows, closes)
+        if atr is None or atr == 0:
+            continue
 
-        confidence = min(92, 60 + score * 10)
+        if direction == "BUY":
+            sl = price - atr * 1.5
+            tp = price + atr * 3.0
+        else:
+            sl = price + atr * 1.5
+            tp = price - atr * 3.0
+
+        confidence = min(92, 55 + score * 12)
 
         signals.append({
             "symbol": symbol,
@@ -148,7 +116,9 @@ def get_signals():
             "tp": float(tp),
             "score": round(score, 2),
             "confidence": round(confidence, 1),
-            "regime": "V64_STABLE"
+            "regime": "V65_SMART_BRAIN"
         })
+
+        last_signal_time[symbol] = time.time()
 
     return signals
