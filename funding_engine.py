@@ -1,23 +1,30 @@
-import requests
+from price_engine import get_funding_rate
+
 
 def get_funding_bias(symbol):
-    try:
-        # سمبول‌های اسپات USDT هستند، برای فیوچرز USDT اضافه میشه
-        fut_symbol = symbol if symbol.endswith("USDT") else symbol + "USDT"
-        r = requests.get(f"https://fapi.binance.com/fapi/v1/premiumIndex?symbol={fut_symbol}", timeout=3)
-        rate = float(r.json().get("lastFundingRate", 0))
-        
-        if rate > 0.0005: return "OVERLONG"  # فاندینگ بالا یعنی لانگ‌ها بیش از حد
-        if rate < -0.0005: return "OVERSHORT" # فاندینگ منفی شدید یعنی شورت‌ها بیش از حد
-        return "NEUTRAL"
-    except:
-        return "NEUTRAL"
+    """دریافت بایاس فاندینگ واقعی"""
+    rate = get_funding_rate(symbol)
 
-def funding_filter(direction, bias):
-    # اگر مارکت اورلانگ است، سیگنال خرید ندهید (ریسک لیکویید شدن لانگ‌ها بالاست)
+    if rate > 0.001:
+        return "OVERLONG", rate
+    elif rate < -0.001:
+        return "OVERSHORT", rate
+    else:
+        return "NEUTRAL", rate
+
+
+def funding_filter(direction, symbol):
+    """فیلتر فاندینگ ریت"""
+    bias, rate = get_funding_bias(symbol)
+
+    # اگر فاندینگ خیلی مثبته، خرید خطرناکه
     if bias == "OVERLONG" and direction == "BUY":
+        print(f"⚠️ FUNDING FILTER: {symbol} overlong ({rate:.4f})")
         return False
-    # اگر مارکت اورشورت است، سیگنال فروش ندهید
+
+    # اگر فاندینگ خیلی منفیه، فروش خطرناکه
     if bias == "OVERSHORT" and direction == "SELL":
+        print(f"⚠️ FUNDING FILTER: {symbol} overshort ({rate:.4f})")
         return False
+
     return True
