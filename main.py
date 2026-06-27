@@ -1,70 +1,131 @@
+from collections import defaultdict
 import time
-from signal_engine import get_signals
-from execution_engine import open_position, update_positions, get_positions, has_position
-from price_engine import get_price
-from telegram_engine import send_signal
-from risk_engine import trading_allowed
+import json
+import os
 
-TRADE_LOCK = {}
-LOCK_SECONDS = 60
+# حافظه هوشمند
+memory = defaultdict(lambda: {
+    "wins": 0,
+    "losses": 0,
+    "total_profit": 0.0,
+    "last_signals": [],
+    "best_hour": None,
+    "avg_duration": 0
+})
 
-def set_trade_lock(symbol):
-    """قفل می‌کند بعد از ترید"""
-    TRADE_LOCK[symbol] = time.time()
+MEMORY_FILE = "ai_memory.json"
 
-def is_trade_locked(symbol):
-    """چک می‌کند اگر قفل هنوز پابرجاست"""
-    if symbol in TRADE_LOCK:
-        if time.time() - TRADE_LOCK[symbol] < LOCK_SECONDS:
-            return True
-        else:
-            del TRADE_LOCK[symbol] # قفل منقضی شده را پاک می‌کند
-    return False
 
-def run():
-    print("🚀 V65 SYSTEM STARTED")
-    while True:
-        try:
-            print("🔁 LOOP RUNNING")
-            update_positions(get_price)
+def save_memory():
+    """ذخیره حافظه در فایل"""
+    try:
+        with open(MEMORY_FILE, "w") as f:
+            json.dump(dict(memory), f, indent=2)
+    except Exception as e:
+        print(f"⚠️ SAVE MEMORY ERROR: {e}")
 
-            if not trading_allowed():
-                print("⚠️ TRADING DISABLED (Risk Limits)")
-                time.sleep(5)
-                continue
 
-            signals = get_signals()
-            if not signals:
-                print("📡 NO SIGNAL")
-                time.sleep(2)
-                continue
+def load_memory():
+    """بارگذاری حافظه از فایل"""
+    global memory
+    try:
+        if os.path.exists(MEMORY_FILE):
+            with open(MEMORY_FILE, "r") as f:
+                data = json.load(f)
+                for k, v in data.items():
+                    memory[k] = v
+            print(f"✅ MEMORY LOADED: {len(data)} symbols")
+    except Exception as e:
+        print(f"⚠️ LOAD MEMORY ERROR: {e}")
 
-            best = max(signals, key=lambda x: x["score"])
-            print("🔥 BEST SIGNAL:", best['symbol'], best['direction'])
 
-            symbol = best.get("symbol")
+def update_memory(symbol, result, profit=0.0):
+    """بروزرسانی حافظه با نتیجه ترید"""
+    if result == "WIN":
+        memory[symbol]["wins"] += 1
+    else:
+        memory[symbol]["losses"] += 1
 
-            if is_trade_locked(symbol):
-                print(f"⛔ TRADE LOCKED for {symbol}")
-                time.sleep(2)
-                continue
+    memory[symbol]["total_profit"] += profit
 
-            if has_position(symbol):
-                print(f"⛔ POSITION EXISTS for {symbol}")
-                time.sleep(2)
-                continue
+    # ذخیره آخرین سیگنال‌ها
+    memory[symbol]["last_signals"].append({
+        "result": result,
+        "profit": profit,
+        "time": time.time()
+    })
 
-            pos = open_position(best)
-            if pos:
-                send_signal(best)
-                set_trade_lock(symbol) # قفل کردن ارز پس از ترید موفق
+    # فقط ۵۰ سیگنال آخر را نگه دار
+    if len(memory[symbol]["last_signals"]) > 50:
+        memory[symbol]["last_signals"] = memory[symbol]["last_signals"][-50:]
 
-            print("📊 OPEN POSITIONS:", len(get_positions()))
-            time.sleep(2)
+    save_memory()
 
-        except Exception as e:
-            print("❌ SYSTEM ERROR:", repr(e))
-            time.sleep(3)
 
-if __name__ == "__main__":
-    run()
+def winrate(symbol):
+    """محاسبه وین‌ریت"""
+    total = memory[symbol]["wins"] + memory[symbol]["losses"]
+    if total == 0:
+        return 0.5
+    return memory[symbol]["wins"] / total
+
+
+def total_trades(symbol):
+    """تعداد کل ترید"""
+    return memory[symbol]["wins"] + memory[symbol]["losses"]
+
+
+def adaptive_score(symbol, base_score):
+    """امتیاز تطبیقی بر اساس عملکرد"""
+    wr = winrate(symbol)
+    trades = total_trades(symbol)
+
+    # اگر ترید کافی نداشته، تغییر نده
+    if trades < 5:
+        return base_score
+
+    if wr > 0.70:
+        return base_score * 1.3
+    elif wr > 0.60:
+        return base_score * 1.15
+    elif wr < 0.35:
+        return base_score * 0.6
+    elif wr < 0.45:
+        return base_score * 0.8
+
+    return base_score
+
+
+def adaptive_confidence(symbol, confidence):
+    """اعتماد تطبیقی"""
+    wr = winrate(symbol)
+    trades = total_trades(symbol)
+
+    if trades < 5:
+        return confidence
+
+    if wr > 0.65:
+        confidence += 8
+    elif wr > 0.55:
+        confidence += 3
+    elif wr < 0.40:
+        confidence -= 10
+    elif wr < 0.45:
+        confidence -= 5
+
+    return max(40, min(95, confidence))
+
+
+def get_symbol_stats(symbol):
+    """آمار کامل یک سیمبل"""
+    return {
+        "winrate": round(winrate(symbol) * 100, 1),
+        "total": total_trades(symbol),
+        "wins": memory[symbol]["wins"],
+        "losses": memory[symbol]["losses"],
+        "profit": round(memory[symbol]["total_profit"], 4)
+    }
+
+
+# بارگذاری حافظه هنگام شروع
+load_memory()
