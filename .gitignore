@@ -1,0 +1,37 @@
+# env
+.env
+.env.*
+!.env.example
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+venv/
+env/
+
+# generated data
+signal_history.csv
+trade_history.csv
+training_data.csv
+backtest_results.csv
+signal_history_labeled.csv
+market_data.csv
+
+# models / artifacts
+models/
+*.joblib
+*.pkl
+*.meta.json
+
+# logs
+logs/
+
+# os / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
